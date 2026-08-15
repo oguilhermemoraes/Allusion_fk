@@ -6,7 +6,7 @@
 
 Construído com **Rust + Tauri 2** no backend e **React** no frontend, foi pensado para ser leve: iniciar rápido, consumir pouca memória (RAM) e indexar grandes bibliotecas com fluidez.
 
-> Fork de [`allusion-app/Allusion`](https://github.com/allusion-app/Allusion). Documentação técnica em [`docs/`](docs/).
+> Projeto derivado do [Allusion original](https://github.com/allusion-app/Allusion), migrando-o do Electron para o Tauri 2 (Rust). O repositório upstream continua sendo a referência do projeto original. Documentação técnica em [`docs/`](docs/).
 
 ## O que você pode fazer
 
