@@ -1,0 +1,45 @@
+name: Discovery & Architecture Validation
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  validate-docs-and-frontend:
+    name: Lint & Test Frontend React
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+
+      - name: Install Dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run ESLint
+        run: yarn lint
+
+      - name: Run Jest Tests
+        run: yarn test
+
+  check-docs-integrity:
+    name: Validate Migration Architecture Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Verify Documentation Files
+        run: |
+          test -f docs/migration-map.md
+          test -f docs/baseline-metrics.md
+          test -f docs/architecture-tauri-v1.md
+          test -f docs/acceptance-criteria-phase1.md
+          echo "Todos os documentos de arquitetura da Fase 0 estao presentes."

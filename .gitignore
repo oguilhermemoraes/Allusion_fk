@@ -1,0 +1,28 @@
+# Dependency directory
+node_modules/
+
+# Build directory
+build/
+
+# Release directory
+dist/
+
+# IDEs
+.idea/
+
+# OSX > NAS drive folder info, local folder info & icon
+._.DS_Store
+.DS_Store
+._*
+
+target/
+src-tauri/tmp/
+src-tauri/target/
+
+# Local Environment & Secrets
+.env*
+.agents/*.env
+
+# Scratch / personal notes
+context_doc/
+build_error.log
