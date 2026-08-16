@@ -6,9 +6,10 @@ Este documento define o contexto, a arquitetura, o fluxo de governança no GitHu
 
 ## 1. Visão Geral do Projeto
 
-- **Nome**: Allusion Next (Fork de `allusion-app/Allusion`)
-- **Repositório Fork**: `oguilhermemoraes/Allusion_fk`
-- **Repositório Upstream**: `allusion-app/Allusion`
+- **Nome**: Allusion Next
+- **Repositório Principal** (independente, não-fork — commits contam no gráfico de contribuições): `oguilhermemoraes/Allusion_fk`
+- **Repositório Legado** (fork antigo, preserva as Issues históricas do Kanban): `oguilhermemoraes/Allusion_fk_legacy`
+- **Repositório Upstream** (referência para pull de atualizações): `allusion-app/Allusion`
 - **Objetivo**: Migração do **Electron 21 (EOL)** para o **Tauri 2 (Rust)**, melhorando significativamente o tempo de boot, o consumo de RAM (-50% a -70%) e o desempenho da biblioteca visual.
 
 ---
@@ -74,4 +75,4 @@ Para criar ou atualizar Issues, Milestones e o Kanban via script ou chamadas HTT
 3. **Sincronização com o Kanban**: Ao iniciar uma Issue, atualize seu status no GitHub Project para `Em Progresso`. Ao finalizar, envie um PR ou commit referenciando a Issue (`Closes #ID`), mova para `Testando & Review` (revisão do opencode) e, após aprovação, para `Concluído`.
 4. **Sem Máfia de Simulação (Anti-Ghost Data)**: Nunca disfarce erros nem insira dados falsos no banco/arquivos. Verifique o código nativo.
 5. **Documentação Integrada**: Sempre que uma alteração arquitetural for realizada, atualize os documentos correspondentes na pasta `docs/`.
-6. **Zero IA Pesada ou APIs Pagas**: PROIBIDO adicionar recursos que dependam de chamadas a APIs pagas de IA ou execução de modelos de ML/LLM pesados localmente. O foco do Allusion Next é leveza extrema, baixo uso de CPU/RAM e utilitários nativos em Rust.
+6. **Zero APIs Pagas de IA; modelos locais apenas opt-in e leves**: PROIBIDO adicionar recursos que dependam de chamadas a APIs pagas de IA e PROIBIDO embarcar modelos de ML/LLM pesados de forma obrigatória. Modelos locais pequenos (até ~500 MB, ex.: CLIP INT8) são permitidos somente como recurso **opt-in** (desligado por padrão nas configurações), executados sob demanda em background e nunca no boot da aplicação. O foco do Allusion Next continua sendo leveza extrema, baixo uso de CPU/RAM e utilitários nativos em Rust.
