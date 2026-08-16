@@ -67,7 +67,10 @@ fn generate_thumbnail_impl(
         });
     }
 
-    let mut img = image::open(path).map_err(|e| format!("failed to decode image: {e}"))?;
+    let bytes = fs::read(path).map_err(|e| format!("failed to read image: {e}"))?;
+    let orientation = crate::commands::orientation::read_exif_orientation(&bytes).unwrap_or(1);
+    let mut img = image::load_from_memory(&bytes)
+        .map_err(|e| format!("failed to decode image: {e}"))?;
     let (width, height) = img.dimensions();
     if width == 0 || height == 0 {
         return Err("empty image".to_string());
@@ -81,6 +84,11 @@ fn generate_thumbnail_impl(
             new_height,
             image::imageops::FilterType::Triangle,
         ));
+    }
+    // Rotaciona/flip no buffer já reduzido (#43): a transformação em full-size
+    // alocaria outro buffer do tamanho do arquivo original (#42).
+    if orientation != 1 {
+        img = crate::commands::orientation::apply_exif_orientation(img, orientation);
     }
 
     if let Some(parent) = out.parent() {
@@ -179,6 +187,22 @@ mod tests {
         let (w, h) = decoded.dimensions();
         assert!(w <= 200 && h <= 200, "expected <= 200px, got {w}x{h}");
         assert!(w >= 1 && h >= 1);
+        let _ = fs::remove_dir_all(out.parent().unwrap());
+    }
+
+    #[test]
+    fn generates_rotated_thumbnail_for_oriented_jpg() {
+        let src = test_images_dir().join("oriented_200x100_o6.jpg");
+        let out = temp_out("oriented").join("thumb.webp");
+        let _ = fs::remove_dir_all(out.parent().unwrap());
+
+        let result =
+            generate_thumbnail_impl(&src.to_string_lossy(), &out.to_string_lossy(), 100).unwrap();
+
+        assert!(result.generated);
+        let decoded = image::load_from_memory(&fs::read(&out).unwrap()).unwrap();
+        let (w, h) = decoded.dimensions();
+        assert_eq!((w, h), (50, 100), "EXIF orientation 6 must produce a portrait thumbnail");
         let _ = fs::remove_dir_all(out.parent().unwrap());
     }
 

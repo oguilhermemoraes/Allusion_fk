@@ -27,6 +27,34 @@ mod tests {
         b
     }
 
+    fn jpeg_with_orientation(w: u16, h: u16, orientation: u8) -> Vec<u8> {
+        // reutiliza a mesma construção do módulo orientation (APP1 "Exif\0\0").
+        // Copiada localmente para não acoplar testes entre módulos.
+        let mut b: Vec<u8> = vec![];
+        b.extend_from_slice(&[0xFF, 0xD8]); // SOI
+        let mut tiff: Vec<u8> = vec![];
+        tiff.extend_from_slice(b"II\x2A\x00");
+        tiff.extend_from_slice(&8u32.to_le_bytes()); // offset IFD0
+        tiff.extend_from_slice(&1u16.to_le_bytes()); // 1 entry
+        tiff.extend_from_slice(&0x0112u16.to_le_bytes());
+        tiff.extend_from_slice(&3u16.to_le_bytes());
+        tiff.extend_from_slice(&1u32.to_le_bytes());
+        tiff.extend_from_slice(&u16::from(orientation).to_le_bytes());
+        tiff.extend_from_slice(&[0, 0]);
+        tiff.extend_from_slice(&0u32.to_le_bytes()); // next IFD
+        let payload = [b"Exif\x00\x00".as_slice(), &tiff].concat();
+        let seg_len = (payload.len() + 2) as u16;
+        b.extend_from_slice(&[0xFF, 0xE1]);
+        b.extend_from_slice(&seg_len.to_be_bytes());
+        b.extend_from_slice(&payload);
+        // SOF0: len 11, precision 8, h, w
+        b.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x11, 0x08]);
+        b.extend_from_slice(&h.to_be_bytes());
+        b.extend_from_slice(&w.to_be_bytes());
+        b.push(0x00); // componentes
+        b
+    }
+
     fn gif_bytes(w: u16, h: u16) -> Vec<u8> {
         let mut b = vec![0u8; 16];
         b[0..6].copy_from_slice(b"GIF89a");
@@ -95,6 +123,15 @@ mod tests {
     }
 
     #[test]
+    fn oriented_dimensions_from_synthetic_jpeg() {
+        let bytes = jpeg_with_orientation(200, 100, 6);
+        assert_eq!(read_dimensions_oriented(&bytes), Some((100, 200)));
+        let bytes = jpeg_with_orientation(200, 100, 1);
+        assert_eq!(read_dimensions_oriented(&bytes), Some((200, 100)));
+        assert_eq!(read_dimensions_oriented(&png_bytes(640, 480)), Some((640, 480)));
+    }
+
+    #[test]
     fn copies_image_to_clipboard_and_reads_back() {
         let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let path = manifest
@@ -121,7 +158,8 @@ mod tests {
 #[tauri::command]
 pub fn get_image_dimensions(path: String) -> Result<(u32, u32), String> {
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    read_dimensions(&bytes).ok_or_else(|| "Unsupported image format or corrupted file".to_string())
+    read_dimensions_oriented(&bytes)
+        .ok_or_else(|| "Unsupported image format or corrupted file".to_string())
 }
 
 #[tauri::command]
@@ -221,5 +259,15 @@ pub fn read_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     }
 
     None
+}
+
+/// Dimensões com EXIF Orientation aplicado (tags 5-8 trocam w/h) (#43).
+pub fn read_dimensions_oriented(bytes: &[u8]) -> Option<(u32, u32)> {
+    let (w, h) = read_dimensions(bytes)?;
+    Some(crate::commands::orientation::oriented_dimensions(
+        w,
+        h,
+        crate::commands::orientation::read_exif_orientation(bytes),
+    ))
 }
 

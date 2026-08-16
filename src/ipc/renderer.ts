@@ -385,7 +385,11 @@ export class RendererMessenger {
     if (!/^[a-zA-Z]:[\\/]/.test(userDataPath)) {
       userDataPath = await RendererMessenger.getPath('userData');
     }
-    return path.join(userDataPath, 'Allusion', 'thumbnails');
+    // v2: EXIF orientation gate em thumbnails (#43). Thumbnails v1 (pós e pré
+    // geração) ficariam deitadas para sempre porque formatos 'web' nunca
+    // regeneram por mtime (ImageLoader.verifyAndGenerateThumbnail). O novo dir
+    // regenera lazy, conforme o usuário visita as pastas.
+    return path.join(userDataPath, 'Allusion', 'thumbnails-v2');
   };
 
   static getDefaultBackupDirectory = async () => {

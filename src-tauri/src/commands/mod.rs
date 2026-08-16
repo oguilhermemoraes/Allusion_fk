@@ -5,6 +5,7 @@ pub mod thumbnail;
 pub mod fs;
 pub mod image;
 pub mod masonry;
+pub mod orientation;
 pub mod palette;
 pub mod scanner;
 pub mod watcher;
