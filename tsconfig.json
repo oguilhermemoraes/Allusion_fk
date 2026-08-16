@@ -18,7 +18,8 @@
     "experimentalDecorators": true,
     "useUnknownInCatchVariables": false,
     "strict": true, 
-    "isolatedModules": true
+    "isolatedModules": true,
+    "skipLibCheck": true
   },
   "include": ["widgets/**/*", "src/**/*", "custom.d.ts", "common/**/*", "tests/**/*"],
   "exclude": ["**/node_modules", "**/.*/*", "dist", "resources", "build"]
