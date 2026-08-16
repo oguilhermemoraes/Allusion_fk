@@ -47,9 +47,13 @@ export const CreateFolderDialog = ({ open, parentPath, onClose }: CreateFolderDi
       onCancel={onClose}
       onClose={onClose}
     >
-      <div className="dialog-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div
+        className="dialog-body"
+        style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+      >
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-color-secondary)' }}>
-          Create a new subfolder inside: <strong style={{ color: 'var(--text-color)' }}>{parentPath}</strong>
+          Create a new subfolder inside:{' '}
+          <strong style={{ color: 'var(--text-color)' }}>{parentPath}</strong>
         </p>
         <input
           className="input"
@@ -126,7 +130,10 @@ export const RenameFolderDialog = ({
       onCancel={onClose}
       onClose={onClose}
     >
-      <div className="dialog-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div
+        className="dialog-body"
+        style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+      >
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-color-secondary)' }}>
           Enter a new name for the folder:
         </p>

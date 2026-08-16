@@ -467,8 +467,7 @@ class UiStore {
   @observable fileToRename: ClientFile | null = null;
 
   @action.bound openRenameFileDialog(file?: ClientFile): void {
-    const target =
-      file || (this.fileSelection.size > 0 ? Array.from(this.fileSelection)[0] : null);
+    const target = file || (this.fileSelection.size > 0 ? Array.from(this.fileSelection)[0] : null);
     if (target) {
       this.fileToRename = target;
     }

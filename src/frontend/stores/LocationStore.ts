@@ -385,7 +385,9 @@ class LocationStore {
   }
 
   @action.bound async renameFolder(oldPath: string, newName: string): Promise<string> {
-    const location = this.locationList.find((l) => oldPath.startsWith(l.path) || oldPath === l.path);
+    const location = this.locationList.find(
+      (l) => oldPath.startsWith(l.path) || oldPath === l.path,
+    );
     if (!location) {
       throw new Error('Location not found for path: ' + oldPath);
     }

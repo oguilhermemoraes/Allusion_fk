@@ -189,18 +189,10 @@ const DirectoryMenu = observer(
         />
         <MenuDivider />
         {onCreateSubfolder && (
-          <MenuItem
-            onClick={handleCreateSubfolder}
-            text="New Subfolder..."
-            icon={IconSet.ADD}
-          />
+          <MenuItem onClick={handleCreateSubfolder} text="New Subfolder..." icon={IconSet.ADD} />
         )}
         {onRenameFolder && (
-          <MenuItem
-            onClick={handleRenameFolder}
-            text="Rename Folder..."
-            icon={IconSet.EDIT}
-          />
+          <MenuItem onClick={handleRenameFolder} text="Rename Folder..." icon={IconSet.EDIT} />
         )}
         <MenuDivider />
         {location instanceof ClientSubLocation && (
@@ -230,13 +222,7 @@ interface IContextMenuProps {
 }
 
 const LocationTreeContextMenu = observer(
-  ({
-    location,
-    onDelete,
-    onExclude,
-    onCreateSubfolder,
-    onRenameFolder,
-  }: IContextMenuProps) => {
+  ({ location, onDelete, onExclude, onCreateSubfolder, onRenameFolder }: IContextMenuProps) => {
     const { uiStore } = useStore();
 
     const openDeleteDialog = useCallback(() => onDelete(location), [location, onDelete]);

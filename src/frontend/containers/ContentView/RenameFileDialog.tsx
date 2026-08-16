@@ -35,7 +35,10 @@ export const RenameFileDialog = ({ open, file, onClose }: RenameFileDialogProps)
     try {
       await fileStore.renameFile(file, trimmed);
       onClose();
-      AppToaster.show({ message: `File renamed to "${trimmed}.${file.extension}".`, timeout: 3000 });
+      AppToaster.show({
+        message: `File renamed to "${trimmed}.${file.extension}".`,
+        timeout: 3000,
+      });
     } catch (err: any) {
       AppToaster.show({ message: `Failed to rename file: ${err.message || err}`, timeout: 5000 });
     } finally {
@@ -61,7 +64,10 @@ export const RenameFileDialog = ({ open, file, onClose }: RenameFileDialogProps)
       onCancel={onClose}
       onClose={onClose}
     >
-      <div className="dialog-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div
+        className="dialog-body"
+        style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+      >
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-color-secondary)' }}>
           Enter a new name for the file:
         </p>
