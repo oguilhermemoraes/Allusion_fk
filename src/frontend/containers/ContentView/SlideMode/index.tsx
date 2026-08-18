@@ -42,8 +42,6 @@ const SlideMode = observer(({ contentRect }: { contentRect: ContentRect }) => {
   );
 });
 
-export default SlideMode;
-
 const SlideView = observer(({ width, height }: { width: number; height: number }) => {
   const { uiStore, fileStore, imageLoader } = useStore();
   const isFirst = useComputed(() => uiStore.firstItem === 0);
