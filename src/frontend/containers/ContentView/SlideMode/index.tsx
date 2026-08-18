@@ -6,7 +6,6 @@ import React, { useEffect, useMemo } from 'react';
 
 import { isVideoExtension } from 'src/api/file';
 import VideoPlayer from 'src/frontend/components/VideoPlayer';
-import StarRating from 'src/frontend/components/StarRating';
 import { encodeFilePath } from 'common/fs';
 import { Button, IconSet, Split } from 'widgets';
 import { useStore } from '../../../contexts/StoreContext';
@@ -170,32 +169,6 @@ const SlideView = observer(({ width, height }: { width: number; height: number }
           <br />
           <span>No image available in this view</span>
           <Button onClick={uiStore.disableSlideMode} text="Back to Gallery" />
-        </div>
-      )}
-
-      {file && (
-        <div
-          className="slide-mode-rating-overlay"
-          style={{
-            position: 'absolute',
-            top: '1rem',
-            right: '1rem',
-            background: 'rgba(20, 20, 20, 0.75)',
-            backdropFilter: 'blur(8px)',
-            borderRadius: '20px',
-            padding: '0.35rem 0.75rem',
-            zIndex: 20,
-            display: 'flex',
-            alignItems: 'center',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <StarRating
-            rating={file.rating}
-            onChange={file.setRating}
-            size="medium"
-            showClear={true}
-          />
         </div>
       )}
 

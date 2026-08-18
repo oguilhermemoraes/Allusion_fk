@@ -128,7 +128,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
         justifyContent: 'center',
         width: '100%',
         height: '100%',
-        backgroundColor: '#000',
+        backgroundColor: 'var(--background-color)',
         overflow: 'hidden',
         ...style,
       }}
@@ -160,19 +160,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
         className={`video-player-controls ${showControls ? 'visible' : 'hidden'}`}
         style={{
           position: 'absolute',
-          bottom: '1rem',
+          bottom: '1.25rem',
           left: '50%',
           transform: 'translateX(-50%)',
           width: 'calc(100% - 3rem)',
-          maxWidth: '700px',
-          background: 'rgba(20, 20, 20, 0.75)',
-          backdropFilter: 'blur(8px)',
-          borderRadius: '8px',
+          maxWidth: '600px',
+          background: 'var(--background-color-alt)',
+          border: '0.0625rem solid var(--border-color)',
+          boxShadow: 'var(--box-shadow)',
+          borderRadius: '0.5rem',
           padding: '0.5rem 0.75rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
-          color: '#fff',
+          color: 'var(--text-color)',
           transition: 'opacity 0.2s ease, transform 0.2s ease',
           opacity: showControls ? 1 : 0,
           pointerEvents: showControls ? 'auto' : 'none',
@@ -183,13 +184,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
           type="button"
           className="btn-icon"
           onClick={togglePlay}
-          style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', padding: 0 }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-color)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0.125rem',
+            borderRadius: '0.25rem',
+          }}
           title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         >
-          {isPlaying ? IconSet.PAUSE : IconSet.PLAY}
+          <span style={{ width: '1.125rem', height: '1.125rem', display: 'flex' }}>
+            {isPlaying ? IconSet.PAUSE : IconSet.PLAY}
+          </span>
         </button>
 
-        <span style={{ fontSize: '0.75rem', minWidth: '40px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ fontSize: '0.75rem', minWidth: '40px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-color-muted)' }}>
           {formatDuration(currentTime)}
         </span>
 
@@ -203,12 +216,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
           style={{
             flex: 1,
             cursor: 'pointer',
-            accentColor: 'var(--accent-color, #2b7fff)',
+            accentColor: 'var(--accent-color)',
             height: '4px',
           }}
         />
 
-        <span style={{ fontSize: '0.75rem', minWidth: '40px', fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ fontSize: '0.75rem', minWidth: '40px', fontVariantNumeric: 'tabular-nums', color: 'var(--text-color-muted)' }}>
           {formatDuration(duration)}
         </span>
 
@@ -216,10 +229,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
           type="button"
           className="btn-icon"
           onClick={toggleMute}
-          style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', padding: 0 }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-color)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0.125rem',
+            borderRadius: '0.25rem',
+          }}
           title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
         >
-          {isMuted ? IconSet.VOLUME_MUTE : IconSet.VOLUME_HIGH}
+          <span style={{ width: '1.125rem', height: '1.125rem', display: 'flex' }}>
+            {isMuted ? IconSet.VOLUME_MUTE : IconSet.VOLUME_HIGH}
+          </span>
         </button>
       </div>
     </div>
