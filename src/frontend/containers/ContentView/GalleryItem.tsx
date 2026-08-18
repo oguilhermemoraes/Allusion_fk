@@ -199,15 +199,6 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
               <span>{formatDuration(file.duration || 0)}</span>
             </div>
           )}
-
-          {file.rating > 0 && (
-            <div className="rating-badge">
-              <span style={{ width: '0.7rem', height: '0.7rem', display: 'flex' }}>
-                {IconSet.STAR_FILL}
-              </span>
-              <span>{file.rating}</span>
-            </div>
-          )}
         </div>
       );
     } else {

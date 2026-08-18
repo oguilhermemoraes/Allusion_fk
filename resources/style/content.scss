@@ -601,28 +601,3 @@
     fill: currentColor;
   }
 }
-
-.rating-badge {
-  position: absolute;
-  top: 0.35rem;
-  left: 0.35rem;
-  background-color: rgba(20, 20, 20, 0.7);
-  backdrop-filter: blur(4px);
-  color: var(--accent-color-yellow, #f5a623);
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.1rem 0.35rem;
-  border-radius: 0.2rem;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  pointer-events: none;
-  z-index: 3;
-  line-height: 1;
-
-  svg {
-    width: 0.7rem;
-    height: 0.7rem;
-    fill: currentColor;
-  }
-}
