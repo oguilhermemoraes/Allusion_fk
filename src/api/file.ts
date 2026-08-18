@@ -90,6 +90,8 @@ export const IMG_EXTENSIONS = [
 ] as const;
 export type IMG_EXTENSIONS_TYPE = (typeof IMG_EXTENSIONS)[number];
 
+export const DEFAULT_ENABLED_EXTENSIONS = IMAGE_EXTENSIONS;
+
 export function isVideoExtension(ext?: string): boolean {
   if (!ext) return false;
   const cleanExt = ext.toLowerCase().replace(/^\./, '');
