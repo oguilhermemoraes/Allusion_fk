@@ -147,7 +147,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
           width: 'auto',
           height: 'auto',
           objectFit: 'contain',
-          cursor: 'pointer',
+          cursor: 'default',
         }}
         onClick={togglePlay}
         onPlay={() => setIsPlaying(true)}
@@ -160,21 +160,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
         className={`video-player-controls ${showControls ? 'visible' : 'hidden'}`}
         style={{
           position: 'absolute',
-          bottom: '1.25rem',
+          bottom: '1rem',
           left: '50%',
           transform: 'translateX(-50%)',
           width: 'calc(100% - 3rem)',
-          maxWidth: '600px',
-          background: 'var(--background-color-alt)',
+          maxWidth: '560px',
+          background: 'var(--shade1)',
           border: '0.0625rem solid var(--border-color)',
-          boxShadow: 'var(--box-shadow)',
-          borderRadius: '0.5rem',
-          padding: '0.5rem 0.75rem',
+          borderRadius: '0.25rem',
+          padding: '0.35rem 0.6rem',
           display: 'flex',
           alignItems: 'center',
-          gap: '0.75rem',
+          gap: '0.5rem',
           color: 'var(--text-color)',
-          transition: 'opacity 0.2s ease, transform 0.2s ease',
           opacity: showControls ? 1 : 0,
           pointerEvents: showControls ? 'auto' : 'none',
           zIndex: 10,
@@ -188,7 +186,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
             background: 'none',
             border: 'none',
             color: 'var(--text-color)',
-            cursor: 'pointer',
+            cursor: 'default',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -197,12 +195,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
           }}
           title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         >
-          <span style={{ width: '1.125rem', height: '1.125rem', display: 'flex' }}>
+          <span style={{ width: '1rem', height: '1rem', display: 'flex' }}>
             {isPlaying ? IconSet.PAUSE : IconSet.PLAY}
           </span>
         </button>
 
-        <span style={{ fontSize: '0.75rem', minWidth: '40px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-color-muted)' }}>
+        <span style={{ fontSize: '0.75rem', minWidth: '36px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-color-muted)' }}>
           {formatDuration(currentTime)}
         </span>
 
@@ -215,13 +213,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
           onChange={handleSeek}
           style={{
             flex: 1,
-            cursor: 'pointer',
+            cursor: 'default',
             accentColor: 'var(--accent-color)',
             height: '4px',
           }}
         />
 
-        <span style={{ fontSize: '0.75rem', minWidth: '40px', fontVariantNumeric: 'tabular-nums', color: 'var(--text-color-muted)' }}>
+        <span style={{ fontSize: '0.75rem', minWidth: '36px', fontVariantNumeric: 'tabular-nums', color: 'var(--text-color-muted)' }}>
           {formatDuration(duration)}
         </span>
 
@@ -233,7 +231,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
             background: 'none',
             border: 'none',
             color: 'var(--text-color)',
-            cursor: 'pointer',
+            cursor: 'default',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -242,7 +240,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = observer(({
           }}
           title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
         >
-          <span style={{ width: '1.125rem', height: '1.125rem', display: 'flex' }}>
+          <span style={{ width: '1rem', height: '1rem', display: 'flex' }}>
             {isMuted ? IconSet.VOLUME_MUTE : IconSet.VOLUME_HIGH}
           </span>
         </button>

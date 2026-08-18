@@ -19,15 +19,10 @@ export const StarRating: React.FC<StarRatingProps> = observer(({
   showClear = true,
   className = '',
 }) => {
-  const [hoverRating, setHoverRating] = useState<number | null>(null);
-
-  const displayRating = hoverRating !== null ? hoverRating : rating;
-
   const handleClick = useCallback(
     (starIndex: number, e: React.MouseEvent) => {
       e.stopPropagation();
       if (readonly || !onChange) return;
-      // If clicking the current rating, clear to 0
       if (rating === starIndex) {
         onChange(0);
       } else {
@@ -51,19 +46,17 @@ export const StarRating: React.FC<StarRatingProps> = observer(({
   return (
     <div
       className={`star-rating-container ${sizeClass} ${readonly ? 'star-rating-readonly' : ''} ${className}`}
-      onMouseLeave={() => !readonly && setHoverRating(null)}
       role="group"
       aria-label={`Rating: ${rating} of 5 stars`}
     >
       {[1, 2, 3, 4, 5].map((starIndex) => {
-        const isFilled = starIndex <= displayRating;
+        const isFilled = starIndex <= rating;
         return (
           <button
             key={starIndex}
             type="button"
             className={`star-rating-btn ${isFilled ? 'star-filled' : 'star-empty'}`}
             onClick={(e) => handleClick(starIndex, e)}
-            onMouseEnter={() => !readonly && setHoverRating(starIndex)}
             disabled={readonly}
             title={readonly ? `${rating} stars` : `Rate ${starIndex} star${starIndex > 1 ? 's' : ''}`}
             aria-label={`${starIndex} star${starIndex > 1 ? 's' : ''}`}
