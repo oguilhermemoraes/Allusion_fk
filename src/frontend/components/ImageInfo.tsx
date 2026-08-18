@@ -1,7 +1,7 @@
 import fse from 'fs-extra';
 import React, { ReactNode, useEffect, useState } from 'react';
 
-import { formatDateTime, humanFileSize } from 'common/fmt';
+import { formatDateTime, formatDuration, humanFileSize } from 'common/fmt';
 import { useStore } from '../contexts/StoreContext';
 import { ClientFile } from '../entities/File';
 import { usePromise } from '../hooks/usePromise';
@@ -109,6 +109,12 @@ const ImageInfo = ({ file }: ImageInfoProps) => {
               <td>{fileStats[field as keyof CommonMetadata]}</td>
             </tr>
           ))}
+          {file.duration !== undefined && file.duration > 0 && (
+            <tr key="duration">
+              <th scope="row">Duration</th>
+              <td>{formatDuration(file.duration)}</td>
+            </tr>
+          )}
           {Object.entries(exifFields).map(([key, field]) => {
             const value = exifStats[key];
             if (!value) {

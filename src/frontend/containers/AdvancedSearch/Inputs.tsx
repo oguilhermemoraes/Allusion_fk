@@ -49,6 +49,9 @@ export const KeySelector = forwardRef(function KeySelector(
       <option key="tags" value="tags">
         Tags
       </option>
+      <option key="rating" value="rating">
+        Rating
+      </option>
       <option key="palette" value="palette">
         Palette Color
       </option>
@@ -113,6 +116,8 @@ export const ValueInput = ({ labelledby, keyValue, value, dispatch }: FieldInput
     return <PathInput labelledby={labelledby} value={value as string} dispatch={dispatch} />;
   } else if (keyValue === 'tags') {
     return <TagInput labelledby={labelledby} value={value as TagValue} dispatch={dispatch} />;
+  } else if (keyValue === 'rating') {
+    return <RatingSearchInput labelledby={labelledby} value={value as number} dispatch={dispatch} />;
   } else if (keyValue === 'palette') {
     return <ColorInput labelledby={labelledby} value={value as ColorValue} dispatch={dispatch} />;
   } else if (keyValue === 'extension') {
@@ -338,8 +343,24 @@ const DateAddedInput = ({ value, labelledby, dispatch }: ValueInput<Date>) => {
   );
 };
 
+const RatingSearchInput = ({ labelledby, value, dispatch }: ValueInput<number>) => (
+  <select
+    className="criteria-input"
+    aria-labelledby={labelledby}
+    onChange={(e) => dispatch(setValue(Number(e.target.value)))}
+    value={value ?? 0}
+  >
+    <option value={0}>0 (Unrated)</option>
+    <option value={1}>★ 1 Star</option>
+    <option value={2}>★★ 2 Stars</option>
+    <option value={3}>★★★ 3 Stars</option>
+    <option value={4}>★★★★ 4 Stars</option>
+    <option value={5}>★★★★★ 5 Stars</option>
+  </select>
+);
+
 function getOperatorOptions(key: Key) {
-  if (['dateAdded', 'size', 'width', 'height'].includes(key)) {
+  if (['dateAdded', 'size', 'width', 'height', 'rating'].includes(key)) {
     return NumberOperators.map((op) => toOperatorOption(op, NumberOperatorSymbols));
   } else if (key === 'extension') {
     return BinaryOperators.map((op) => toOperatorOption(op));

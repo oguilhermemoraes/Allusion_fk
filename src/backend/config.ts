@@ -116,6 +116,25 @@ const dbConfig: DBVersioningConfig[] = [
         });
     },
   },
+  {
+    // Version 10, 18-8-26: Added rating and duration indexes/fields to file (see #53, #54).
+    version: 10,
+    collections: [
+      {
+        name: 'files',
+        schema:
+          '++id, ino, locationId, *tags, relativePath, &absolutePath, name, extension, size, width, height, dateAdded, dateModified, dateCreated, rating, duration',
+      },
+    ],
+    upgrade: (tx: Transaction): void => {
+      tx.table('files')
+        .toCollection()
+        .modify((file: FileDTO) => {
+          file.rating = file.rating ?? 0;
+          return file;
+        });
+    },
+  },
 ];
 
 type DBVersioningConfig = {

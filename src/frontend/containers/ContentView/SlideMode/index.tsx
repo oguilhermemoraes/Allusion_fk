@@ -4,6 +4,9 @@ import { observer } from 'mobx-react-lite';
 import SysPath from 'path';
 import React, { useEffect, useMemo } from 'react';
 
+import { isVideoExtension } from 'src/api/file';
+import VideoPlayer from 'src/frontend/components/VideoPlayer';
+import StarRating from 'src/frontend/components/StarRating';
 import { encodeFilePath } from 'common/fs';
 import { Button, IconSet, Split } from 'widgets';
 import { useStore } from '../../../contexts/StoreContext';
@@ -39,68 +42,38 @@ const SlideMode = observer(({ contentRect }: { contentRect: ContentRect }) => {
   );
 });
 
-interface SlideViewProps {
-  width: number;
-  height: number;
-}
+export default SlideMode;
 
-const SlideView = observer(({ width, height }: SlideViewProps) => {
+const SlideView = observer(({ width, height }: { width: number; height: number }) => {
   const { uiStore, fileStore, imageLoader } = useStore();
-  const file = uiStore.firstFileInView;
+  const isFirst = useComputed(() => uiStore.firstItem === 0);
+  const isLast = useComputed(() => uiStore.firstItem === fileStore.fileList.length - 1);
+  const file = fileStore.fileList[uiStore.firstItem];
   const eventManager = useMemo(
     () => (file ? new CommandDispatcher(file, uiStore) : undefined),
     [file, uiStore],
   );
-  const isFirst = useComputed(() => uiStore.firstItem === 0);
-  const isLast = useComputed(() => uiStore.firstItem === fileStore.fileList.length - 1);
-
-  // Go to the first selected image on load
-  useEffect(() => {
-    return reaction(
-      () => uiStore.firstSelectedFile?.id,
-      (id, _, reaction) => {
-        if (id !== undefined) {
-          const index = fileStore.getIndex(id);
-          uiStore.setFirstItem(index);
-
-          // Also, select only this file: makes more sense for the TagEditor overlay: shows tags on selected images
-          if (index !== undefined) {
-            uiStore.selectFile(fileStore.fileList[index], true);
-          }
-
-          reaction.dispose();
-        }
-      },
-      { fireImmediately: true },
-    );
-  }, [fileStore, uiStore]);
-
-  // Go back to previous view when pressing the back button (mouse button 5)
-  useEffect(() => {
-    // Push a dummy state, so that a pop-state event can be activated
-    // TODO: would be nice to also open SlideMode again when pressing forward button: actually store the open image in the window.location?
-    history.pushState(null, document.title, location.href);
-    const popStateHandler = uiStore.disableSlideMode;
-    window.addEventListener('popstate', popStateHandler);
-    return () => window.removeEventListener('popstate', popStateHandler);
-  }, [uiStore]);
 
   const decrImgIndex = useAction(() => {
-    const index = Math.max(0, uiStore.firstItem - 1);
+    const index = Math.max(uiStore.firstItem - 1, 0);
     uiStore.setFirstItem(index);
-
-    // Select only this file: TagEditor overlay shows tags on selected images
     uiStore.selectFile(fileStore.fileList[index], true);
   });
+
   const incrImgIndex = useAction(() => {
     const index = Math.min(uiStore.firstItem + 1, fileStore.fileList.length - 1);
     uiStore.setFirstItem(index);
     uiStore.selectFile(fileStore.fileList[index], true);
   });
 
-  // Detect left/right arrow keys to scroll between images. Top/down is already handled in the layout that's open in the background
+  // Detect left/right arrow keys and 0-5 rating hotkeys
   useEffect(() => {
     const handleUserKeyPress = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+
       if (event.key === 'ArrowLeft') {
         decrImgIndex();
         event.stopPropagation();
@@ -108,10 +81,10 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
         incrImgIndex();
         event.stopPropagation();
       } else if (event.key === 'Escape' || event.key === 'Backspace') {
-        if (event.target instanceof HTMLInputElement) {
-          return;
-        }
         uiStore.disableSlideMode();
+        event.stopPropagation();
+      } else if (event.key >= '0' && event.key <= '5' && file) {
+        file.setRating(Number(event.key));
         event.stopPropagation();
       }
     };
@@ -119,7 +92,7 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
     return () => {
       window.removeEventListener('keydown', handleUserKeyPress);
     };
-  }, [decrImgIndex, incrImgIndex, uiStore]);
+  }, [decrImgIndex, file, incrImgIndex, uiStore]);
 
   // Preload next and previous image for better UX
   useEffect(() => {
@@ -179,16 +152,20 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
       tabIndex={-1}
     >
       {file ? (
-        <ZoomableImage
-          file={file}
-          thumbnailSrc={file.thumbnailPath}
-          width={width}
-          height={height}
-          transitionStart={transitionStart}
-          transitionEnd={uiStore.isSlideMode ? undefined : transitionStart}
-          onClose={uiStore.disableSlideMode}
-          upscaleMode={uiStore.upscaleMode}
-        />
+        isVideoExtension(file.extension) ? (
+          <VideoPlayer file={file} autoPlay loop />
+        ) : (
+          <ZoomableImage
+            file={file}
+            thumbnailSrc={file.thumbnailPath}
+            width={width}
+            height={height}
+            transitionStart={transitionStart}
+            transitionEnd={uiStore.isSlideMode ? undefined : transitionStart}
+            onClose={uiStore.disableSlideMode}
+            upscaleMode={uiStore.upscaleMode}
+          />
+        )
       ) : (
         <div style={CONTAINER_DEFAULT_STYLE} className="image-fallback">
           <div style={{ maxHeight: 360, maxWidth: 360 }} className="image-error" />
@@ -197,6 +174,33 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
           <Button onClick={uiStore.disableSlideMode} text="Back to Gallery" />
         </div>
       )}
+
+      {file && (
+        <div
+          className="slide-mode-rating-overlay"
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem',
+            background: 'rgba(20, 20, 20, 0.75)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: '20px',
+            padding: '0.35rem 0.75rem',
+            zIndex: 20,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <StarRating
+            rating={file.rating}
+            onChange={file.setRating}
+            size="medium"
+            showClear={true}
+          />
+        </div>
+      )}
+
       <NavigationButtons
         isStart={isFirst.get()}
         isEnd={isLast.get()}

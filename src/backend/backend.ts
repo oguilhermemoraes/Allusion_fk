@@ -507,17 +507,17 @@ function filterNumberLambda<T>(crit: NumberConditionDTO<T>): (t: any) => boolean
 
   switch (crit.operator) {
     case 'equals':
-      return (t: any) => t[key] === value;
+      return (t: any) => (t[key] ?? 0) === value;
     case 'notEqual':
-      return (t: any) => t[key] !== value;
+      return (t: any) => (t[key] ?? 0) !== value;
     case 'smallerThan':
-      return (t: any) => t[key] < value;
+      return (t: any) => (t[key] ?? 0) < value;
     case 'smallerThanOrEquals':
-      return (t: any) => t[key] <= value;
+      return (t: any) => (t[key] ?? 0) <= value;
     case 'greaterThan':
-      return (t: any) => t[key] > value;
+      return (t: any) => (t[key] ?? 0) > value;
     case 'greaterThanOrEquals':
-      return (t: any) => t[key] >= value;
+      return (t: any) => (t[key] ?? 0) >= value;
     default:
       const _exhaustiveCheck: never = crit.operator;
       return _exhaustiveCheck;

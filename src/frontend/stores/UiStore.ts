@@ -122,6 +122,7 @@ type PersistentPreferenceFields =
   | 'gridGap'
   | 'gridBorderRadius'
   | 'gridBorderWidth'
+  | 'isVideoHoverPreviewEnabled'
   // the following are only restored when isRememberSearchEnabled is enabled
   | 'isSlideMode'
   | 'firstItem'
@@ -156,6 +157,8 @@ class UiStore {
   @observable isThumbnailTagOverlayEnabled: boolean = true;
   @observable isThumbnailFilenameOverlayEnabled: boolean = false;
   @observable isThumbnailResolutionOverlayEnabled: boolean = false;
+  /** Whether to preview videos on mouse hover in the grid */
+  @observable isVideoHoverPreviewEnabled: boolean = true;
   /** Whether to restore the last search query on start-up */
   @observable isRememberSearchEnabled: boolean = true;
   /** Index of the first item in the viewport. Also acts as the current item shown in slide mode */
@@ -316,6 +319,14 @@ class UiStore {
 
   @action.bound toggleThumbnailResolutionOverlay(): void {
     this.isThumbnailResolutionOverlayEnabled = !this.isThumbnailResolutionOverlayEnabled;
+  }
+
+  @action.bound toggleVideoHoverPreview(): void {
+    this.isVideoHoverPreviewEnabled = !this.isVideoHoverPreviewEnabled;
+  }
+
+  @action.bound setVideoHoverPreview(enabled: boolean): void {
+    this.isVideoHoverPreviewEnabled = enabled;
   }
 
   @action.bound toggleRememberSearchQuery(): void {
@@ -942,6 +953,7 @@ class UiStore {
         this.isThumbnailTagOverlayEnabled = Boolean(prefs.isThumbnailTagOverlayEnabled ?? true);
         this.isThumbnailFilenameOverlayEnabled = Boolean(prefs.isThumbnailFilenameOverlayEnabled ?? false); // eslint-disable-line prettier/prettier
         this.isThumbnailResolutionOverlayEnabled = Boolean(prefs.isThumbnailResolutionOverlayEnabled ?? false); // eslint-disable-line prettier/prettier
+        this.isVideoHoverPreviewEnabled = Boolean(prefs.isVideoHoverPreviewEnabled ?? true);
         this.outlinerWidth = Math.max(Number(prefs.outlinerWidth), UiStore.MIN_OUTLINER_WIDTH);
         this.inspectorWidth = Math.max(Number(prefs.inspectorWidth), UiStore.MIN_INSPECTOR_WIDTH);
         Object.entries<string>(prefs.hotkeyMap).forEach(
@@ -999,6 +1011,7 @@ class UiStore {
       isThumbnailFilenameOverlayEnabled: this.isThumbnailFilenameOverlayEnabled,
       isThumbnailTagOverlayEnabled: this.isThumbnailTagOverlayEnabled,
       isThumbnailResolutionOverlayEnabled: this.isThumbnailResolutionOverlayEnabled,
+      isVideoHoverPreviewEnabled: this.isVideoHoverPreviewEnabled,
       outlinerWidth: this.outlinerWidth,
       inspectorWidth: this.inspectorWidth,
       isRememberSearchEnabled: this.isRememberSearchEnabled,

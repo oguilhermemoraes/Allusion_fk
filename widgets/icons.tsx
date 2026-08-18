@@ -113,6 +113,12 @@ import WARNING_FILL from 'resources/icons/warning-fill.svg';
 import WARNING_BROKEN_LINK from 'resources/icons/warning-broken-link.svg';
 import WARNING from 'resources/icons/warning.svg';
 import QUESTION_MARK from 'resources/icons/questionmark.svg';
+import STAR_FILL from 'resources/icons/star-fill.svg';
+import STAR_OUTLINE from 'resources/icons/star-outline.svg';
+import PLAY from 'resources/icons/play-solid.svg';
+import PAUSE from 'resources/icons/pause-solid.svg';
+import VOLUME_HIGH from 'resources/icons/volume-high-solid.svg';
+import VOLUME_MUTE from 'resources/icons/volume-mute-solid.svg';
 
 const toSvg = (src: any) => <SVG src={src} className="custom-icon" aria-hidden="true" />;
 
@@ -198,6 +204,12 @@ const IconSet = {
   SORT: toSvg(SORT),
   SORT_ALT: toSvg(SORT_ALT),
   // SPACER: toSvg(SPACER),
+  STAR_FILL: toSvg(STAR_FILL),
+  STAR_OUTLINE: toSvg(STAR_OUTLINE),
+  PLAY: toSvg(PLAY),
+  PAUSE: toSvg(PAUSE),
+  VOLUME_HIGH: toSvg(VOLUME_HIGH),
+  VOLUME_MUTE: toSvg(VOLUME_MUTE),
   TAG_ADD: toSvg(TAG_ADD),
   // TAG_ADD_COLLECTION: toSvg(TAG_ADD_COLLECTION),
   TAG_BLANCO: toSvg(TAG_BLANCO),

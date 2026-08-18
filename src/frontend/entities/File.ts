@@ -27,6 +27,8 @@ interface IMetaData {
   height: number;
   /** Date when this file was created (from the OS, not related to Allusion) */
   dateCreated: Date;
+  rating?: number;
+  duration?: number;
 }
 
 /**
@@ -63,6 +65,16 @@ export class ClientFile {
    */
   @observable description?: string;
 
+  /**
+   * Star rating from 1 to 5 stars (0 = unrated) (#53).
+   */
+  @observable rating: number = 0;
+
+  /**
+   * Duration in seconds for video and audio files (#54).
+   */
+  @observable duration?: number;
+
   @observable thumbnailPath: string = '';
 
   // Dominant colors extracted during indexing (see #66), oldest first by coverage.
@@ -98,6 +110,8 @@ export class ClientFile {
     this.tags = observable(this.store.getTags(fileProps.tags));
 
     this.description = fileProps.description;
+    this.rating = fileProps.rating ?? 0;
+    this.duration = fileProps.duration;
 
     makeObservable(this);
 
@@ -122,6 +136,14 @@ export class ClientFile {
 
   @action.bound setDescription(description: string): void {
     this.description = description;
+  }
+
+  @action.bound setRating(rating: number): void {
+    this.rating = rating;
+  }
+
+  @action.bound setDuration(duration: number): void {
+    this.duration = duration;
   }
 
   @action.bound setPalette(palette: PaletteColorDTO[]): void {
@@ -180,6 +202,8 @@ export class ClientFile {
       absolutePath: this.absolutePath,
       tags: Array.from(this.tags, (t) => t.id), // removes observable properties from observable array
       description: this.description,
+      rating: this.rating,
+      duration: this.duration,
       size: this.size,
       width: this.width,
       height: this.height,
@@ -212,6 +236,7 @@ export async function getMetaData(stats: FileStats, imageLoader: ImageLoader): P
     width: dimensions.width,
     height: dimensions.height,
     dateCreated: stats.dateCreated,
+    duration: dimensions.duration,
   };
 }
 
@@ -225,6 +250,8 @@ export function mergeMovedFile(oldFile: FileDTO, newFile: FileDTO): FileDTO {
     absolutePath: newFile.absolutePath,
     relativePath: newFile.relativePath,
     locationId: newFile.locationId,
+    rating: oldFile.rating,
+    duration: oldFile.duration ?? newFile.duration,
     palette: toPlainPalette(oldFile.palette),
     dateModified: new Date(),
   };

@@ -1,12 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import React, { ReactNode, useCallback, useState } from 'react';
-import { IMG_EXTENSIONS, IMG_EXTENSIONS_TYPE } from 'src/api/file';
+import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, IMG_EXTENSIONS, IMG_EXTENSIONS_TYPE } from 'src/api/file';
 import { RendererMessenger } from 'src/ipc/renderer';
 import { Button, Checkbox, IconSet, Toggle } from 'widgets';
 import { useStore } from '../../contexts/StoreContext';
 
 export const ImageFormatPicker = observer(() => {
-  const { locationStore, fileStore } = useStore();
+  const { locationStore, fileStore, uiStore } = useStore();
 
   const [removeDisabledImages, setRemoveDisabledImages] = useState(true);
   const toggleRemoveDisabledImages = useCallback(() => setRemoveDisabledImages((val) => !val), []);
@@ -27,6 +27,19 @@ export const ImageFormatPicker = observer(() => {
     [newEnabledFileExtensions],
   );
 
+  const toggleAllVideos = useCallback(() => {
+    const newSet = new Set(newEnabledFileExtensions);
+    const allVideosEnabled = VIDEO_EXTENSIONS.every((ext) => newSet.has(ext));
+    if (allVideosEnabled) {
+      VIDEO_EXTENSIONS.forEach((ext) => newSet.delete(ext));
+    } else {
+      VIDEO_EXTENSIONS.forEach((ext) => newSet.add(ext));
+    }
+    setNewEnabledFileExtensions(newSet);
+  }, [newEnabledFileExtensions]);
+
+  const areAllVideosEnabled = VIDEO_EXTENSIONS.every((ext) => newEnabledFileExtensions.has(ext));
+
   const onSubmit = useCallback(async () => {
     if (removeDisabledImages) {
       const extensionsToDelete = IMG_EXTENSIONS.filter((ext) => !newEnabledFileExtensions.has(ext));
@@ -43,13 +56,12 @@ export const ImageFormatPicker = observer(() => {
     RendererMessenger.reload();
   }, [fileStore, locationStore, newEnabledFileExtensions, removeDisabledImages]);
 
-  // TODO: group extensions by type: JPG+JPEG+JFIF, TIF+TIFF, etc
   return (
     <>
       <fieldset>
-        <legend>Image formats to be discovered by Allusion in your Locations</legend>
+        <legend>Image formats</legend>
         <div className="checkbox-set-container">
-          {IMG_EXTENSIONS.map((ext) => (
+          {IMAGE_EXTENSIONS.map((ext) => (
             <Checkbox
               key={ext}
               checked={newEnabledFileExtensions.has(ext)}
@@ -62,8 +74,38 @@ export const ImageFormatPicker = observer(() => {
         </div>
       </fieldset>
 
+      <fieldset>
+        <legend style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Video formats</span>
+          <button
+            type="button"
+            className="btn btn-small"
+            style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', cursor: 'pointer' }}
+            onClick={toggleAllVideos}
+          >
+            {areAllVideosEnabled ? 'Disable all videos' : 'Enable all videos'}
+          </button>
+        </legend>
+        <div className="checkbox-set-container">
+          {VIDEO_EXTENSIONS.map((ext) => (
+            <Checkbox
+              key={ext}
+              checked={newEnabledFileExtensions.has(ext)}
+              onChange={() => toggleExtension(ext)}
+            >
+              {ext}
+              {imageFormatInts[ext] && <> {imageFormatInts[ext]}</>}
+            </Checkbox>
+          ))}
+        </div>
+      </fieldset>
+
+      <Toggle checked={uiStore.isVideoHoverPreviewEnabled} onChange={uiStore.toggleVideoHoverPreview}>
+        Preview videos on mouse hover in the gallery grid
+      </Toggle>
+
       <Toggle checked={removeDisabledImages} onChange={toggleRemoveDisabledImages}>
-        Remove images with disabled file extensions after save
+        Remove images/videos with disabled file extensions after save
       </Toggle>
 
       <Button
