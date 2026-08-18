@@ -99,36 +99,6 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
   const { thumbnailPath, isBroken } = file;
   const isVideo = isVideoExtension(file.extension);
 
-  const [showVideoPreview, setShowVideoPreview] = useState(false);
-  const hoverTimeoutRef = useRef<number | null>(null);
-
-  const handleMouseEnter = useCallback(() => {
-    if (isVideo && uiStore.isVideoHoverPreviewEnabled) {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-      hoverTimeoutRef.current = window.setTimeout(() => {
-        setShowVideoPreview(true);
-      }, 150);
-    }
-  }, [isVideo, uiStore.isVideoHoverPreviewEnabled]);
-
-  const handleMouseLeave = useCallback(() => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-    setShowVideoPreview(false);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
-
   // This will check whether a thumbnail exists, generate it if needed
   const imageSource = usePromise(
     file,
@@ -185,7 +155,6 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
     fileIdRef.current = fileId;
     setLoadError(false);
     setImgLoaded(false);
-    setShowVideoPreview(false);
   }, [fileId]);
 
   if (!mounted) {
@@ -197,11 +166,7 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
       const is_lowres = file.width < 320 || file.height < 320;
       const src = encodeFilePath(imageSource.value.ok);
       return (
-        <div
-          style={{ position: 'relative', width: '100%', height: '100%' }}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           {!imgLoaded && (
             <span className="image-loading" style={{ position: 'absolute', inset: 0 }} />
           )}
@@ -224,47 +189,10 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
             }}
           />
 
-          {showVideoPreview && (
-            <video
-              src={encodeFilePath(file.absolutePath)}
-              autoPlay
-              muted
-              loop
-              playsInline
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                zIndex: 2,
-                borderRadius: 'inherit',
-                pointerEvents: 'none',
-              }}
-            />
-          )}
+          {isVideo && <VideoThumbnailPreview file={file} />}
 
           {isVideo && (
-            <div
-              className="video-duration-badge"
-              style={{
-                position: 'absolute',
-                bottom: '0.35rem',
-                right: '0.35rem',
-                background: 'rgba(0, 0, 0, 0.75)',
-                backdropFilter: 'blur(4px)',
-                color: '#fff',
-                fontSize: '0.7rem',
-                fontWeight: 500,
-                padding: '0.1rem 0.35rem',
-                borderRadius: '3px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                pointerEvents: 'none',
-                zIndex: 3,
-              }}
-            >
+            <div className="video-duration-badge">
               <span style={{ width: '0.65rem', height: '0.65rem', display: 'flex' }}>
                 {IconSet.PLAY}
               </span>
@@ -273,26 +201,7 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
           )}
 
           {file.rating > 0 && (
-            <div
-              className="rating-badge"
-              style={{
-                position: 'absolute',
-                top: '0.35rem',
-                left: '0.35rem',
-                background: 'rgba(0, 0, 0, 0.75)',
-                backdropFilter: 'blur(4px)',
-                color: '#f5a623',
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                padding: '0.1rem 0.35rem',
-                borderRadius: '3px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.2rem',
-                pointerEvents: 'none',
-                zIndex: 3,
-              }}
-            >
+            <div className="rating-badge">
               <span style={{ width: '0.7rem', height: '0.7rem', display: 'flex' }}>
                 {IconSet.STAR_FILL}
               </span>
@@ -307,6 +216,66 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
   } else {
     return <span className="image-loading" />;
   }
+});
+
+const VideoThumbnailPreview = observer(({ file }: { file: ClientFile }) => {
+  const { uiStore } = useStore();
+  const [showPreview, setShowPreview] = useState(false);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (uiStore.isVideoHoverPreviewEnabled) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      hoverTimeoutRef.current = window.setTimeout(() => {
+        setShowPreview(true);
+      }, 150);
+    }
+  }, [uiStore.isVideoHoverPreviewEnabled]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setShowPreview(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      style={{ position: 'absolute', inset: 0, zIndex: 2 }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {showPreview && (
+        <video
+          src={encodeFilePath(file.absolutePath)}
+          autoPlay
+          muted
+          loop
+          playsInline
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            borderRadius: 'inherit',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+    </div>
+  );
 });
 
 const getThumbnail = action((file: ClientFile) => file.thumbnailPath);
