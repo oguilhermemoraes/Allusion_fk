@@ -35,6 +35,14 @@ export type FileDTO = {
    * Stored only in the database, never written to the file itself (#49).
    */
   description?: string;
+  /**
+   * Optional rating from 1 to 5 stars (0 or undefined indicates unrated) (#53).
+   */
+  rating?: number;
+  /**
+   * Optional duration in seconds for video and audio files (#54).
+   */
+  duration?: number;
   /** Dominant colors extracted during indexing (see #66), oldest first by coverage. */
   palette?: PaletteColorDTO[];
 };
@@ -47,7 +55,7 @@ export type PaletteColorDTO = {
   percentage: number;
 };
 
-export const IMG_EXTENSIONS = [
+export const IMAGE_EXTENSIONS = [
   'gif',
   'png',
   'apng',
@@ -62,12 +70,37 @@ export const IMG_EXTENSIONS = [
   'svg',
   'psd',
   'kra',
+  'exr',
+] as const;
+export type IMAGE_EXTENSIONS_TYPE = (typeof IMAGE_EXTENSIONS)[number];
 
-  // 'xcf', // Gimp
-  'exr', // OpenEXR
-  // 'raw', there are many RAW file extensions :( https://fileinfo.com/filetypes/camera_raw
-  // 'avif',
-  // 'heic', // not supported by Sharp out of the box https://github.com/lovell/sharp/issues/2871
-  // TODO: 'blend', raw, etc.?
+export const VIDEO_EXTENSIONS = [
+  'mp4',
+  'webm',
+  'mov',
+  'mkv',
+  'ogg',
+  'avi',
+] as const;
+export type VIDEO_EXTENSIONS_TYPE = (typeof VIDEO_EXTENSIONS)[number];
+
+export const IMG_EXTENSIONS = [
+  ...IMAGE_EXTENSIONS,
+  ...VIDEO_EXTENSIONS,
 ] as const;
 export type IMG_EXTENSIONS_TYPE = (typeof IMG_EXTENSIONS)[number];
+
+export const DEFAULT_ENABLED_EXTENSIONS = IMAGE_EXTENSIONS;
+
+export function isVideoExtension(ext?: string): boolean {
+  if (!ext) return false;
+  const cleanExt = ext.toLowerCase().replace(/^\./, '');
+  return (VIDEO_EXTENSIONS as readonly string[]).includes(cleanExt);
+}
+
+export function isImageExtension(ext?: string): boolean {
+  if (!ext) return false;
+  const cleanExt = ext.toLowerCase().replace(/^\./, '');
+  return (IMAGE_EXTENSIONS as readonly string[]).includes(cleanExt);
+}
+

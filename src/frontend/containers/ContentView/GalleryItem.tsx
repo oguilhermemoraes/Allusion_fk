@@ -3,7 +3,8 @@ import { action, when } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ellipsize, humanFileSize } from 'common/fmt';
+import { isVideoExtension } from 'src/api/file';
+import { ellipsize, formatDuration, humanFileSize } from 'common/fmt';
 import { encodeFilePath } from 'common/fs';
 import { IconButton, IconSet, Tag } from 'widgets';
 import { useStore } from '../../contexts/StoreContext';
@@ -96,6 +97,7 @@ export const MasonryCell = observer(
 export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProps) => {
   const { uiStore, imageLoader } = useStore();
   const { thumbnailPath, isBroken } = file;
+  const isVideo = isVideoExtension(file.extension);
 
   // This will check whether a thumbnail exists, generate it if needed
   const imageSource = usePromise(
@@ -186,6 +188,17 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
                 : {}),
             }}
           />
+
+          {isVideo && <VideoThumbnailPreview file={file} />}
+
+          {isVideo && (
+            <div className="video-duration-badge">
+              <span style={{ width: '0.65rem', height: '0.65rem', display: 'flex' }}>
+                {IconSet.PLAY}
+              </span>
+              <span>{formatDuration(file.duration || 0)}</span>
+            </div>
+          )}
         </div>
       );
     } else {
@@ -194,6 +207,66 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
   } else {
     return <span className="image-loading" />;
   }
+});
+
+const VideoThumbnailPreview = observer(({ file }: { file: ClientFile }) => {
+  const { uiStore } = useStore();
+  const [showPreview, setShowPreview] = useState(false);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (uiStore.isVideoHoverPreviewEnabled) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      hoverTimeoutRef.current = window.setTimeout(() => {
+        setShowPreview(true);
+      }, 150);
+    }
+  }, [uiStore.isVideoHoverPreviewEnabled]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setShowPreview(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      style={{ position: 'absolute', inset: 0, zIndex: 2 }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {showPreview && (
+        <video
+          src={encodeFilePath(file.absolutePath)}
+          autoPlay
+          muted
+          loop
+          playsInline
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            borderRadius: 'inherit',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+    </div>
+  );
 });
 
 const getThumbnail = action((file: ClientFile) => file.thumbnailPath);

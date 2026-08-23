@@ -5,6 +5,7 @@ import { useStore } from '../../contexts/StoreContext';
 import FileDescription from '../../components/FileDescription';
 import FileTags from '../../components/FileTag';
 import ImageInfo from '../../components/ImageInfo';
+import StarRating from '../../components/StarRating';
 import { IconButton, IconSet } from 'widgets';
 import { showItemInFolder } from 'src/frontend/services/shell';
 import { IS_PREVIEW_WINDOW } from 'common/window';
@@ -28,6 +29,21 @@ const Inspector = observer(() => {
       <section>
         <ImageInfo file={first} />
       </section>
+      {!IS_PREVIEW_WINDOW && (
+        <section>
+          <header>
+            <h2>Rating</h2>
+          </header>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0.25rem 0.5rem' }}>
+            <StarRating
+              key={`rating-${first.id}`}
+              rating={first.rating}
+              onChange={first.setRating}
+              size="medium"
+            />
+          </div>
+        </section>
+      )}
       <section>
         <header>
           <h2>Path to file</h2>

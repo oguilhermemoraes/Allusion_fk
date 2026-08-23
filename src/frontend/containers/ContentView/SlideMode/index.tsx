@@ -1,9 +1,11 @@
 import { openExternal } from 'src/frontend/services/shell';
-import { autorun, reaction } from 'mobx';
+import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import SysPath from 'path';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 
+import { isVideoExtension } from 'src/api/file';
+import VideoPlayer from 'src/frontend/components/VideoPlayer';
 import { encodeFilePath } from 'common/fs';
 import { Button, IconSet, Split } from 'widgets';
 import { useStore } from '../../../contexts/StoreContext';
@@ -17,8 +19,35 @@ import ZoomPan, { CONTAINER_DEFAULT_STYLE, SlideTransform } from '../SlideMode/Z
 import { ContentRect } from '../utils';
 import { Vec2, createDimension, createTransform } from './utils';
 
-const SlideMode = observer(({ contentRect }: { contentRect: ContentRect }) => {
-  const { uiStore } = useStore();
+// Full-resolution sources preloaded while navigating slide mode, keyed by file
+// id. Consumed synchronously by ZoomableImage so the next image mounts
+// directly sharp: otherwise it first paints its upscaled grid thumbnail,
+// which reads as "the image being opened from the grid" instead of a normal
+// media switch (most visible when coming from a video).
+const PRELOADED_SOURCE_LIMIT = 12;
+const preloadedSources = new Map<string, { src: string; dimension: Vec2 }>();
+
+function rememberPreloadedSource(id: string, src: string, dimension: Vec2): void {
+  preloadedSources.delete(id);
+  preloadedSources.set(id, { src, dimension });
+  while (preloadedSources.size > PRELOADED_SOURCE_LIMIT) {
+    const oldest = preloadedSources.keys().next().value;
+    if (oldest === undefined) {
+      break;
+    }
+    preloadedSources.delete(oldest);
+  }
+}
+
+function takePreloadedSource(id: string): { src: string; dimension: Vec2 } | undefined {
+  const entry = preloadedSources.get(id);
+  if (entry !== undefined) {
+    preloadedSources.delete(id);
+  }
+  return entry;
+}
+
+const SlideMode = observer(({ contentRect }: { contentRect: ContentRect }) => {  const { uiStore } = useStore();
   const isInspectorOpen = uiStore.isInspectorOpen;
   const inspectorWidth = uiStore.inspectorWidth;
   const contentWidth = contentRect.width - (isInspectorOpen ? inspectorWidth : 0);
@@ -39,68 +68,36 @@ const SlideMode = observer(({ contentRect }: { contentRect: ContentRect }) => {
   );
 });
 
-interface SlideViewProps {
-  width: number;
-  height: number;
-}
-
-const SlideView = observer(({ width, height }: SlideViewProps) => {
+const SlideView = observer(({ width, height }: { width: number; height: number }) => {
   const { uiStore, fileStore, imageLoader } = useStore();
-  const file = uiStore.firstFileInView;
+  const isFirst = useComputed(() => uiStore.firstItem === 0);
+  const isLast = useComputed(() => uiStore.firstItem === fileStore.fileList.length - 1);
+  const file = fileStore.fileList[uiStore.firstItem];
   const eventManager = useMemo(
     () => (file ? new CommandDispatcher(file, uiStore) : undefined),
     [file, uiStore],
   );
-  const isFirst = useComputed(() => uiStore.firstItem === 0);
-  const isLast = useComputed(() => uiStore.firstItem === fileStore.fileList.length - 1);
-
-  // Go to the first selected image on load
-  useEffect(() => {
-    return reaction(
-      () => uiStore.firstSelectedFile?.id,
-      (id, _, reaction) => {
-        if (id !== undefined) {
-          const index = fileStore.getIndex(id);
-          uiStore.setFirstItem(index);
-
-          // Also, select only this file: makes more sense for the TagEditor overlay: shows tags on selected images
-          if (index !== undefined) {
-            uiStore.selectFile(fileStore.fileList[index], true);
-          }
-
-          reaction.dispose();
-        }
-      },
-      { fireImmediately: true },
-    );
-  }, [fileStore, uiStore]);
-
-  // Go back to previous view when pressing the back button (mouse button 5)
-  useEffect(() => {
-    // Push a dummy state, so that a pop-state event can be activated
-    // TODO: would be nice to also open SlideMode again when pressing forward button: actually store the open image in the window.location?
-    history.pushState(null, document.title, location.href);
-    const popStateHandler = uiStore.disableSlideMode;
-    window.addEventListener('popstate', popStateHandler);
-    return () => window.removeEventListener('popstate', popStateHandler);
-  }, [uiStore]);
 
   const decrImgIndex = useAction(() => {
-    const index = Math.max(0, uiStore.firstItem - 1);
+    const index = Math.max(uiStore.firstItem - 1, 0);
     uiStore.setFirstItem(index);
-
-    // Select only this file: TagEditor overlay shows tags on selected images
     uiStore.selectFile(fileStore.fileList[index], true);
   });
+
   const incrImgIndex = useAction(() => {
     const index = Math.min(uiStore.firstItem + 1, fileStore.fileList.length - 1);
     uiStore.setFirstItem(index);
     uiStore.selectFile(fileStore.fileList[index], true);
   });
 
-  // Detect left/right arrow keys to scroll between images. Top/down is already handled in the layout that's open in the background
+  // Detect left/right arrow keys and 0-5 rating hotkeys
   useEffect(() => {
     const handleUserKeyPress = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+
       if (event.key === 'ArrowLeft') {
         decrImgIndex();
         event.stopPropagation();
@@ -108,10 +105,10 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
         incrImgIndex();
         event.stopPropagation();
       } else if (event.key === 'Escape' || event.key === 'Backspace') {
-        if (event.target instanceof HTMLInputElement) {
-          return;
-        }
         uiStore.disableSlideMode();
+        event.stopPropagation();
+      } else if (event.key >= '0' && event.key <= '5' && file) {
+        file.setRating(Number(event.key));
         event.stopPropagation();
       }
     };
@@ -119,18 +116,37 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
     return () => {
       window.removeEventListener('keydown', handleUserKeyPress);
     };
-  }, [decrImgIndex, incrImgIndex, uiStore]);
+  }, [decrImgIndex, file, incrImgIndex, uiStore]);
 
-  // Preload next and previous image for better UX
+  // Preload next and previous image for better UX. Successfully preloaded
+  // full-resolution sources are remembered in `preloadedSources` so that
+  // ZoomableImage can consume them synchronously on mount (see below).
   useEffect(() => {
     let isEffectRunning = true;
+    const preload = (file: ClientFile) => {
+      imageLoader.getImageSrc(file).then((src) => {
+        // Only cache path-based sources: buffer-based sources are temporary
+        // object URLs that the ImageLoader may revoke.
+        if (!isEffectRunning || !src || src !== file.absolutePath) {
+          return;
+        }
+        const encoded = encodeFilePath(src);
+        const img = new Image();
+        img.onload = () => {
+          if (isEffectRunning) {
+            rememberPreloadedSource(
+              file.id,
+              encoded,
+              createDimension(img.naturalWidth, img.naturalHeight),
+            );
+          }
+        };
+        img.src = encoded;
+      });
+    };
     const dispose = autorun(() => {
       if (!isLast.get() && uiStore.firstItem + 1 < fileStore.fileList.length) {
-        const nextImg = new Image();
-        const nextFile = fileStore.fileList[uiStore.firstItem + 1];
-        imageLoader
-          .getImageSrc(nextFile)
-          .then((src) => isEffectRunning && src && (nextImg.src = encodeFilePath(src)));
+        preload(fileStore.fileList[uiStore.firstItem + 1]);
       }
       if (
         !isFirst.get() &&
@@ -138,11 +154,7 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
         uiStore.firstItem - 1 >= 0 &&
         uiStore.firstItem - 1 < fileStore.fileList.length
       ) {
-        const prevImg = new Image();
-        const prevFile = fileStore.fileList[uiStore.firstItem - 1];
-        imageLoader
-          .getImageSrc(prevFile)
-          .then((src) => isEffectRunning && src && (prevImg.src = encodeFilePath(src)));
+        preload(fileStore.fileList[uiStore.firstItem - 1]);
       }
     });
     return () => {
@@ -151,7 +163,9 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
     };
   }, [fileStore, isFirst, isLast, uiStore, imageLoader]);
 
-  const transitionStart: SlideTransform | undefined = useMemo(() => {
+  // Grid-cell transform of the currently displayed item; used as the target of
+  // the close ("shrink back into its thumbnail") animation.
+  const gridTransform: SlideTransform | undefined = useMemo(() => {
     if (!file) {
       return undefined;
     }
@@ -170,6 +184,18 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file?.id]);
 
+  // The "zoom out of the clicked thumbnail" open animation must only play when
+  // slide mode itself opens. Navigating within slide mode remounts
+  // ZoomableImage whenever the media type changes (e.g. video -> image), and
+  // passing a fresh transitionStart made the image zoom out from its grid cell
+  // again instead of swapping in place.
+  const openedFileIdRef = useRef<string | undefined>(undefined);
+  if (openedFileIdRef.current === undefined && file !== undefined) {
+    openedFileIdRef.current = file.id;
+  }
+  const transitionStart =
+    file !== undefined && file.id === openedFileIdRef.current ? gridTransform : undefined;
+
   return (
     <div
       id="zoomable-image"
@@ -179,16 +205,20 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
       tabIndex={-1}
     >
       {file ? (
-        <ZoomableImage
-          file={file}
-          thumbnailSrc={file.thumbnailPath}
-          width={width}
-          height={height}
-          transitionStart={transitionStart}
-          transitionEnd={uiStore.isSlideMode ? undefined : transitionStart}
-          onClose={uiStore.disableSlideMode}
-          upscaleMode={uiStore.upscaleMode}
-        />
+        isVideoExtension(file.extension) ? (
+          <VideoPlayer file={file} autoPlay loop />
+        ) : (
+          <ZoomableImage
+            file={file}
+            thumbnailSrc={file.thumbnailPath}
+            width={width}
+            height={height}
+            transitionStart={transitionStart}
+            transitionEnd={uiStore.isSlideMode ? undefined : gridTransform}
+            onClose={uiStore.disableSlideMode}
+            upscaleMode={uiStore.upscaleMode}
+          />
+        )
       ) : (
         <div style={CONTAINER_DEFAULT_STYLE} className="image-fallback">
           <div style={{ maxHeight: 360, maxWidth: 360 }} className="image-error" />
@@ -197,6 +227,7 @@ const SlideView = observer(({ width, height }: SlideViewProps) => {
           <Button onClick={uiStore.disableSlideMode} text="Back to Gallery" />
         </div>
       )}
+
       <NavigationButtons
         isStart={isFirst.get()}
         isEnd={isLast.get()}
@@ -244,6 +275,12 @@ const ZoomableImage: React.FC<ZoomableImageProps> = ({
     imgWidth,
     imgHeight,
     async (source, absolutePath, thumbnailSrc, imgWidth, imgHeight) => {
+      // A preloaded full-resolution source is ready: mount sharp immediately
+      // instead of flashing the upscaled grid thumbnail first.
+      const preloaded = takePreloadedSource(file.id);
+      if (preloaded !== undefined) {
+        return preloaded;
+      }
       if (source.tag === 'ready') {
         if ('ok' in source.value) {
           const src = source.value.ok;

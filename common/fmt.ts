@@ -102,3 +102,19 @@ export function humanFileSize(bytes: number, si = false, dp = 1) {
 
   return bytes.toFixed(dp) + ' ' + units[u];
 }
+
+export function formatDuration(seconds: number): string {
+  if (!seconds || isNaN(seconds) || seconds <= 0) {
+    return '0:00';
+  }
+  const totalSecs = Math.round(seconds);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  if (mins >= 60) {
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    return `${hrs}:${remMins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+

@@ -27,6 +27,8 @@ interface IMetaData {
   height: number;
   /** Date when this file was created (from the OS, not related to Allusion) */
   dateCreated: Date;
+  rating?: number;
+  duration?: number;
 }
 
 /**
@@ -46,8 +48,10 @@ export class ClientFile {
   readonly absolutePath: string;
   readonly tags: ObservableSet<ClientTag>;
   readonly size: number;
-  readonly width: number;
-  readonly height: number;
+  /** Media dimensions; observable so late-extracted video dimensions can heal the grid layout (#54). */
+  @observable width: number;
+  /** Media dimensions; observable so late-extracted video dimensions can heal the grid layout (#54). */
+  @observable height: number;
   readonly dateAdded: Date;
   readonly dateCreated: Date;
   readonly dateModified: Date;
@@ -62,6 +66,16 @@ export class ClientFile {
    * Stored only in the DB via the auto-save reaction; missing = "no description" (#49).
    */
   @observable description?: string;
+
+  /**
+   * Star rating from 1 to 5 stars (0 = unrated) (#53).
+   */
+  @observable rating: number = 0;
+
+  /**
+   * Duration in seconds for video and audio files (#54).
+   */
+  @observable duration?: number;
 
   @observable thumbnailPath: string = '';
 
@@ -98,6 +112,8 @@ export class ClientFile {
     this.tags = observable(this.store.getTags(fileProps.tags));
 
     this.description = fileProps.description;
+    this.rating = fileProps.rating ?? 0;
+    this.duration = fileProps.duration;
 
     makeObservable(this);
 
@@ -122,6 +138,20 @@ export class ClientFile {
 
   @action.bound setDescription(description: string): void {
     this.description = description;
+  }
+
+  @action.bound setRating(rating: number): void {
+    this.rating = rating;
+  }
+
+  @action.bound setDuration(duration: number): void {
+    this.duration = duration;
+  }
+
+  /** Updates extracted media dimensions (e.g. after a video frame is decoded). */
+  @action.bound setDimensions(width: number, height: number): void {
+    this.width = width;
+    this.height = height;
   }
 
   @action.bound setPalette(palette: PaletteColorDTO[]): void {
@@ -180,6 +210,8 @@ export class ClientFile {
       absolutePath: this.absolutePath,
       tags: Array.from(this.tags, (t) => t.id), // removes observable properties from observable array
       description: this.description,
+      rating: this.rating,
+      duration: this.duration,
       size: this.size,
       width: this.width,
       height: this.height,
@@ -212,6 +244,7 @@ export async function getMetaData(stats: FileStats, imageLoader: ImageLoader): P
     width: dimensions.width,
     height: dimensions.height,
     dateCreated: stats.dateCreated,
+    duration: dimensions.duration,
   };
 }
 
@@ -225,6 +258,8 @@ export function mergeMovedFile(oldFile: FileDTO, newFile: FileDTO): FileDTO {
     absolutePath: newFile.absolutePath,
     relativePath: newFile.relativePath,
     locationId: newFile.locationId,
+    rating: oldFile.rating,
+    duration: oldFile.duration ?? newFile.duration,
     palette: toPlainPalette(oldFile.palette),
     dateModified: new Date(),
   };

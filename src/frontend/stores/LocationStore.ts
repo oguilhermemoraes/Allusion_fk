@@ -7,7 +7,11 @@ import { promiseAllLimit } from 'common/promise';
 import { registerAssetScope } from '../services/assetScope';
 import { DataStorage } from '../../api/data-storage';
 import { OrderDirection } from '../../api/data-storage-search';
-import { FileDTO, IMG_EXTENSIONS, IMG_EXTENSIONS_TYPE } from '../../api/file';
+import {
+  DEFAULT_ENABLED_EXTENSIONS,
+  FileDTO,
+  IMG_EXTENSIONS_TYPE,
+} from '../../api/file';
 import { ID, generateId } from '../../api/id';
 import { LocationDTO } from '../../api/location';
 import { RendererMessenger } from '../../ipc/renderer';
@@ -56,10 +60,12 @@ class LocationStore {
     // Restore preferences
     try {
       const prefs = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || '') as Preferences;
-      (prefs.extensions || IMG_EXTENSIONS).forEach((ext) => this.enabledFileExtensions.add(ext));
+      (prefs.extensions || DEFAULT_ENABLED_EXTENSIONS).forEach((ext) =>
+        this.enabledFileExtensions.add(ext),
+      );
     } catch (e) {
-      // If no preferences found, use defaults
-      IMG_EXTENSIONS.forEach((ext) => this.enabledFileExtensions.add(ext));
+      // If no preferences found, use defaults (images only)
+      DEFAULT_ENABLED_EXTENSIONS.forEach((ext) => this.enabledFileExtensions.add(ext));
       // By default, disable EXR for now (experimental)
       this.enabledFileExtensions.delete('exr');
     }
@@ -624,6 +630,10 @@ export async function pathToIFile(
     id: generateId(),
     locationId: loc.id,
     tags: [],
+    // Index every file with an explicit unrated value: records missing the
+    // property are not part of Dexie's 'rating' index, which would make the
+    // advanced search "rating equals 0" silently miss them (#53).
+    rating: 0,
     dateAdded: now,
     dateModified: now,
     dateLastIndexed: now,

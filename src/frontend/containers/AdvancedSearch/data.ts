@@ -26,6 +26,7 @@ export type Criteria =
   | Field<'tags', TagOperatorType, TagValue>
   | Field<'palette', ColorOperatorType, ColorValue>
   | Field<'extension', BinaryOperatorType, string>
+  | Field<'rating', NumberOperatorType, number>
   | Field<'size', NumberOperatorType, number>
   | Field<'width' | 'height', NumberOperatorType, number>
   | Field<'dateAdded', NumberOperatorType, Date>;
@@ -44,6 +45,7 @@ export type Key = keyof Pick<
   | 'tags'
   | 'palette'
   | 'extension'
+  | 'rating'
   | 'size'
   | 'width'
   | 'height'
@@ -66,6 +68,12 @@ export function defaultQuery(key: Key): Criteria {
       key,
       operator: 'equals',
       value: IMG_EXTENSIONS[0],
+    };
+  } else if (key === 'rating') {
+    return {
+      key,
+      operator: 'greaterThanOrEquals',
+      value: 1,
     };
   } else if (key === 'dateAdded') {
     return {
@@ -95,6 +103,8 @@ export function fromCriteria(criteria: ClientFileSearchCriteria): [ID, Criteria]
     query.value = criteria.value;
   } else if (criteria instanceof ClientNumberSearchCriteria && criteria.key === 'size') {
     query.value = criteria.value / BYTES_IN_MB;
+  } else if (criteria instanceof ClientNumberSearchCriteria && criteria.key === 'rating') {
+    query.value = criteria.value;
   } else if (criteria instanceof ClientTagSearchCriteria && criteria.key === 'tags') {
     const id = criteria.value;
     query.value = id;
@@ -125,6 +135,8 @@ export function intoCriteria(query: Criteria, tagStore: TagStore): ClientFileSea
     return new ClientDateSearchCriteria(query.key, query.value, query.operator);
   } else if (query.key === 'size') {
     return new ClientNumberSearchCriteria(query.key, query.value * BYTES_IN_MB, query.operator);
+  } else if (query.key === 'rating') {
+    return new ClientNumberSearchCriteria(query.key, query.value, query.operator);
   } else if (query.key === 'width' || query.key === 'height') {
     return new ClientNumberSearchCriteria(query.key, query.value, query.operator);
   } else if (query.key === 'tags') {

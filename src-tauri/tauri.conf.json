@@ -47,7 +47,7 @@
         "font-src": ["'self'", "data:"],
         "worker-src": ["'self'", "blob:"],
         "child-src": ["'self'", "blob:"],
-        "media-src": ["'self'", "blob:", "file:"],
+        "media-src": ["'self'", "asset:", "http://asset.localhost", "https://asset.localhost", "blob:", "data:", "file:"],
         "frame-src": ["'self'"]
       },
       "devCsp": {
@@ -59,7 +59,7 @@
         "font-src": ["'self'", "data:"],
         "worker-src": ["'self'", "blob:"],
         "child-src": ["'self'", "blob:"],
-        "media-src": ["'self'", "blob:", "file:"],
+        "media-src": ["'self'", "asset:", "http://asset.localhost", "https://asset.localhost", "blob:", "data:", "file:"],
         "frame-src": ["'self'"]
       }
     }

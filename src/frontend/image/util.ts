@@ -60,7 +60,9 @@ export async function generateThumbnail(
       quality, // Allows to further compress image
     ),
   );
-  return fse.writeFile(outputPath, Buffer.from(blobBuffer));
+  // NOTE: no `Buffer` — the Tauri WebView has no Node globals. The fs shim
+  // accepts ArrayBuffer/Uint8Array.
+  return fse.writeFile(outputPath, new Uint8Array(blobBuffer));
 }
 
 function dataToCanvas(data: ImageData): HTMLCanvasElement {

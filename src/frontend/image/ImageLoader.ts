@@ -1,10 +1,11 @@
+import Path from 'path';
 import fse from 'fs-extra';
 import { action, runInAction } from 'mobx';
 import StreamZip from 'node-stream-zip';
 
 import ExifIO from 'common/ExifIO';
 import { thumbnailMaxSize } from 'common/config';
-import { FileDTO, IMG_EXTENSIONS_TYPE } from '../../api/file';
+import { FileDTO, IMG_EXTENSIONS_TYPE, isVideoExtension } from '../../api/file';
 import { ClientFile } from '../entities/File';
 import ExrLoader from './ExrLoader';
 import PsdLoader from './PSDLoader';
@@ -12,9 +13,11 @@ import { generateThumbnailUsingWorker } from './ThumbnailGeneration';
 import TifLoader from './TifLoader';
 import { generateThumbnail, getBlob } from './util';
 import { generateNativeThumbnail } from '../services/nativeThumbnail';
+import { generateVideoThumbnail, getVideoMetadata } from './videoThumbnail';
 
 type FormatHandlerType =
   | 'web'
+  | 'video'
   | 'tifLoader'
   | 'exrLoader'
   | 'psdLoader'
@@ -39,6 +42,12 @@ const FormatHandlers: Record<IMG_EXTENSIONS_TYPE, FormatHandlerType> = {
   // xcf: 'extractEmbeddedThumbnailOnly',
   exr: 'exrLoader',
   // avif: 'sharp',
+  mp4: 'video',
+  webm: 'video',
+  mov: 'video',
+  mkv: 'video',
+  ogg: 'video',
+  avi: 'video',
 };
 
 type ObjectURL = string;
@@ -76,6 +85,10 @@ class ImageLoader {
     // Not using thumbnails for gifs, since they're mostly used for animations, which doesn't get preserved in thumbnails
     if (file.extension === 'gif') {
       return false;
+    }
+
+    if (isVideoExtension(file.extension)) {
+      return true;
     }
 
     return (
@@ -156,7 +169,12 @@ class ImageLoader {
       thumbnailPath: stripVersion(file.thumbnailPath),
     };
 
-    if (await fse.pathExists(thumbnailPath)) {
+    // Videos indexed by older versions may carry 0x0 dimensions (metadata was
+    // read before the first frame was decoded). Regenerating their thumbnail
+    // also recovers the real dimensions, which the grid needs for aspect ratio.
+    const needsDimensionHeal = isVideoExtension(extension) && file.width === 0 && file.height === 0;
+
+    if (!needsDimensionHeal && (await fse.pathExists(thumbnailPath))) {
       // Web formats produce a deterministic downscale of the source, so a
       // present thumbnail is always current. Only formats with mutable sources
       // (PSD, KRA, ...) need the mtime comparison. Skipping the two `stat`
@@ -204,6 +222,25 @@ class ImageLoader {
         }
         break;
       }
+      case 'video': {
+        try {
+          const meta = await generateVideoThumbnail(absolutePath, thumbnailPath, thumbnailMaxSize);
+          runInAction(() => {
+            if (meta.duration && (!file.duration || file.duration === 0)) {
+              file.setDuration(meta.duration);
+            }
+            // Heal 0x0 records so the masonry layout uses the real aspect ratio
+            if (meta.width > 0 && meta.height > 0 && (file.width === 0 || file.height === 0)) {
+              file.setDimensions(meta.width, meta.height);
+            }
+            updateThumbnailPath(file, thumbnailPath);
+          });
+        } catch (e) {
+          console.warn('Could not generate video thumbnail', absolutePath, e);
+          throw e;
+        }
+        break;
+      }
       case 'exrLoader':
         await generateThumbnail(this.exrLoader, absolutePath, thumbnailPath, thumbnailMaxSize);
         updateThumbnailPath(file, thumbnailPath);
@@ -246,6 +283,7 @@ class ImageLoader {
     const handlerType = FormatHandlers[file.extension];
     switch (handlerType) {
       case 'web':
+      case 'video':
         return file.absolutePath;
       case 'tifLoader': {
         const src =
@@ -277,7 +315,19 @@ class ImageLoader {
   }
 
   /** Returns 0 for width and height if they can't be determined */
-  async getImageResolution(absolutePath: string): Promise<{ width: number; height: number }> {
+  async getImageResolution(
+    absolutePath: string,
+  ): Promise<{ width: number; height: number; duration?: number }> {
+    const ext = Path.extname(absolutePath).slice(1).toLowerCase();
+    if (isVideoExtension(ext)) {
+      const videoMeta = await getVideoMetadata(absolutePath);
+      return {
+        width: videoMeta.width,
+        height: videoMeta.height,
+        duration: videoMeta.duration,
+      };
+    }
+
     // ExifTool should be able to read the resolution from any image file
     const dimensions = await this.exifIO.getDimensions(absolutePath);
 
