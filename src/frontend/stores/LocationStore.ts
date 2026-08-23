@@ -11,6 +11,7 @@ import {
   DEFAULT_ENABLED_EXTENSIONS,
   FileDTO,
   IMG_EXTENSIONS_TYPE,
+  isSupportedExtension,
 } from '../../api/file';
 import { ID, generateId } from '../../api/id';
 import { LocationDTO } from '../../api/location';
@@ -318,6 +319,19 @@ class LocationStore {
     } else {
       AppToaster.dismiss(progressToastKey);
     }
+
+    // Purge records with extensions outside the supported media set (e.g.
+    // leftover `.crdownload` partial downloads from old imports): they can
+    // never be served and only produce "Unsupported extension" warnings and
+    // thumbnail 404s (#39). Runs for ALL locations, including missing ones.
+    try {
+      const purged = await this.backend.purgeUnsupportedExtensions();
+      if (purged > 0) {
+        console.info(`[cleanup] removed ${purged} library records with unsupported extensions`);
+      }
+    } catch (e) {
+      console.warn('[cleanup] failed to purge unsupported library files', e);
+    }
     return foundNewFiles;
   }
 
@@ -528,6 +542,16 @@ class LocationStore {
   @action async addFile(fileStats: FileStats, location: ClientLocation): Promise<void> {
     const fileStore = this.rootStore.fileStore;
 
+    // Ignore files outside the supported media set (e.g. `.crdownload`
+    // partial browser downloads inside watched folders) so they never enter
+    // the library (#39). When a download finishes, the final rename triggers
+    // a new add event with the real extension.
+    const extStart = fileStats.absolutePath.lastIndexOf('.');
+    const ext = extStart > -1 ? fileStats.absolutePath.slice(extStart + 1).toLowerCase() : '';
+    if (!isSupportedExtension(ext)) {
+      return;
+    }
+
     // Gather file data
     const file = await pathToIFile(fileStats, location, this.rootStore.imageLoader);
 
@@ -640,5 +664,4 @@ export async function pathToIFile(
     ...(await getMetaData(stats, imageLoader)),
   };
 }
-
 export default LocationStore;

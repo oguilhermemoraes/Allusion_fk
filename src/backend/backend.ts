@@ -13,7 +13,7 @@ import {
   OrderDirection,
   StringConditionDTO,
 } from '../api/data-storage-search';
-import { FileDTO } from '../api/file';
+import { FileDTO, IMG_EXTENSIONS } from '../api/file';
 import { FileSearchDTO } from '../api/file-search';
 import { ID } from '../api/id';
 import { LocationDTO } from '../api/location';
@@ -222,6 +222,24 @@ export default class Backend implements DataStorage {
     console.info('IndexedDB: Removing files...', files);
     await this.#files.bulkDelete(files);
     this.#notifyChange();
+  }
+
+  /**
+   * Removes library records whose extension is not in the supported media set
+   * (e.g. `.crdownload` browser partial downloads picked up by old imports):
+   * they can never be rendered and only produce warnings/404s (#39).
+   * @returns The number of removed records.
+   */
+  async purgeUnsupportedExtensions(): Promise<number> {
+    const allFiles = await this.#files.toArray();
+    const normalize = (ext: string) => ext.toLowerCase().replace(/^\./, '');
+    const ghosts = allFiles.filter(
+      (f) => !(IMG_EXTENSIONS as readonly string[]).includes(normalize(String(f.extension))),
+    );
+    if (ghosts.length > 0) {
+      await this.removeFiles(ghosts.map((f) => f.id));
+    }
+    return ghosts.length;
   }
 
   async removeLocation(location: ID): Promise<void> {

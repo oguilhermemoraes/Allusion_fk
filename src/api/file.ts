@@ -74,33 +74,35 @@ export const IMAGE_EXTENSIONS = [
 ] as const;
 export type IMAGE_EXTENSIONS_TYPE = (typeof IMAGE_EXTENSIONS)[number];
 
-export const VIDEO_EXTENSIONS = [
-  'mp4',
-  'webm',
-  'mov',
-  'mkv',
-  'ogg',
-  'avi',
-] as const;
+export const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'mkv', 'ogg', 'avi'] as const;
 export type VIDEO_EXTENSIONS_TYPE = (typeof VIDEO_EXTENSIONS)[number];
 
-export const IMG_EXTENSIONS = [
-  ...IMAGE_EXTENSIONS,
-  ...VIDEO_EXTENSIONS,
-] as const;
+export const IMG_EXTENSIONS = [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS] as const;
 export type IMG_EXTENSIONS_TYPE = (typeof IMG_EXTENSIONS)[number];
 
 export const DEFAULT_ENABLED_EXTENSIONS = IMAGE_EXTENSIONS;
 
 export function isVideoExtension(ext?: string): boolean {
-  if (!ext) return false;
+  if (!ext) {
+    return false;
+  }
   const cleanExt = ext.toLowerCase().replace(/^\./, '');
   return (VIDEO_EXTENSIONS as readonly string[]).includes(cleanExt);
 }
 
 export function isImageExtension(ext?: string): boolean {
-  if (!ext) return false;
+  if (!ext) {
+    return false;
+  }
   const cleanExt = ext.toLowerCase().replace(/^\./, '');
   return (IMAGE_EXTENSIONS as readonly string[]).includes(cleanExt);
 }
 
+/** Whether the extension belongs to the supported media set (images + videos). */
+export function isSupportedExtension(ext?: string): boolean {
+  if (!ext) {
+    return false;
+  }
+  const cleanExt = ext.toLowerCase().replace(/^\./, '');
+  return (IMG_EXTENSIONS as readonly string[]).includes(cleanExt);
+}

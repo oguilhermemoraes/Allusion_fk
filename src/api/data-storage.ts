@@ -39,6 +39,8 @@ export interface DataStorage {
   removeTags(tags: ID[]): Promise<void>;
   mergeTags(tagToBeRemoved: ID, tagToMergeWith: ID): Promise<void>;
   removeFiles(files: ID[]): Promise<void>;
+  /** Deletes records whose extension is outside the supported media set (#39). @returns removed count */
+  purgeUnsupportedExtensions(): Promise<number>;
   removeLocation(location: ID): Promise<void>;
   removeSearch(search: ID): Promise<void>;
   countFiles(): Promise<[fileCount: number, untaggedFileCount: number]>;

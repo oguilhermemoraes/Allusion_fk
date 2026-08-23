@@ -27,6 +27,15 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be the first plugin: guarantees a single app instance and
+        // focuses the existing window when a second launch is attempted (#62).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .manage(FolderWatcherState::new())
         .setup(|app| {
             // Safety net: the main window is created with `visible: false` and the
