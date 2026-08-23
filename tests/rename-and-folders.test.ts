@@ -40,15 +40,6 @@ jest.mock('fs-extra', () => ({
   remove: jest.fn(async () => {}),
 }));
 
-jest.mock('../src/frontend/workers/folderWatcherFactory', () => ({
-  createFolderWatcherWorker: jest.fn(() => ({
-    postMessage: jest.fn(),
-    terminate: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-  })),
-}));
-
 describe('Rename and Folder management', () => {
   let backend: any;
   let rootStore: any;

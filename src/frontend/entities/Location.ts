@@ -1,6 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { isTauri } from 'common/tauri';
-import { Remote, wrap } from 'comlink';
 import fse from 'fs-extra';
 import { IObservableArray, action, makeObservable, observable, runInAction } from 'mobx';
 import SysPath from 'path';
@@ -12,8 +10,6 @@ import { LocationDTO, SubLocationDTO } from '../../api/location';
 import { RendererMessenger } from '../../ipc/renderer';
 import { AppToaster } from '../components/Toaster';
 import LocationStore, { FileStats } from '../stores/LocationStore';
-import { createFolderWatcherWorker } from '../workers/folderWatcherFactory';
-import { FolderWatcherWorker } from '../workers/folderWatcher.worker';
 
 /** Sorts alphanumerically, "natural" sort */
 const sort = (a: SubLocationDTO, b: SubLocationDTO) =>
@@ -71,8 +67,6 @@ export class ClientSubLocation {
 
 export class ClientLocation {
   private store: LocationStore;
-
-  worker?: Remote<FolderWatcherWorker>;
 
   // Whether the initial scan has been completed, and new/removed files are being watched
   private isReady = false;
@@ -167,7 +161,6 @@ export class ClientLocation {
   }
 
   async delete(): Promise<void> {
-    this.worker?.cancel();
     await this.drop();
     return this.store.delete(this);
   }
@@ -231,12 +224,9 @@ export class ClientLocation {
 
   /** Cleanup resources */
   async drop(): Promise<void> {
-    if (isTauri()) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { tauriFolderWatcher } = require('../services/TauriFolderWatcher');
-      return tauriFolderWatcher.stopWatching(this.path);
-    }
-    return this.worker?.close();
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { tauriFolderWatcher } = require('../services/TauriFolderWatcher');
+    return tauriFolderWatcher.stopWatching(this.path);
   }
 
   async refreshSublocations(): Promise<void> {
@@ -279,106 +269,58 @@ export class ClientLocation {
   }
 
   private async watch(directory: string): Promise<FileStats[]> {
-    if (isTauri()) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { tauriFolderWatcher } = require('../services/TauriFolderWatcher');
-      tauriFolderWatcher.startWatching(directory, async (event: any) => {
-        if (event.kind === 'remove') {
-          console.log(`Location "${this.name}": File ${event.path} has been removed.`);
-          this.store.hideFile(event.path);
-        } else if (event.kind === 'create' || event.kind === 'modify') {
-          if (this.excludedPaths.some((subLoc) => event.path.startsWith(subLoc.path))) {
-            return;
-          }
-          try {
-            const st = await fse.stat(event.path);
-            if (st.isFile()) {
-              const fileStats: FileStats = {
-                absolutePath: event.path,
-                size: st.size,
-                dateModified: st.mtime,
-                dateCreated: st.birthtime,
-                ino: String(st.ino || event.path),
-              };
-              this.store.addFile(fileStats, this);
-            }
-          } catch (e) {}
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { tauriFolderWatcher } = require('../services/TauriFolderWatcher');
+    tauriFolderWatcher.startWatching(directory, async (event: any) => {
+      if (event.kind === 'remove') {
+        console.log(`Location "${this.name}": File ${event.path} has been removed.`);
+        this.store.hideFile(event.path);
+      } else if (event.kind === 'create' || event.kind === 'modify') {
+        if (this.excludedPaths.some((subLoc) => event.path.startsWith(subLoc.path))) {
+          return;
         }
-      });
-
-      interface ScannedFile {
-        absolute_path: string;
-        size: number;
-        date_modified: number;
-        date_created: number;
-        ino: string;
+        try {
+          const st = await fse.stat(event.path);
+          if (st.isFile()) {
+            const fileStats: FileStats = {
+              absolutePath: event.path,
+              size: st.size,
+              dateModified: st.mtime,
+              dateCreated: st.birthtime,
+              ino: String(st.ino || event.path),
+            };
+            this.store.addFile(fileStats, this);
+          }
+        } catch (e) {}
       }
+    });
 
-      const scanned = await invoke<ScannedFile[]>('scan_library', {
-        path: directory,
-        extensions: this.extensions,
-      });
-
-      const initialFiles: FileStats[] = scanned
-        .filter(
-          (f) => !this.excludedPaths.some((subLoc) => f.absolute_path.startsWith(subLoc.path)),
-        )
-        .map((f) => ({
-          absolutePath: f.absolute_path,
-          size: f.size,
-          dateModified: new Date(f.date_modified),
-          dateCreated: new Date(f.date_created),
-          ino: f.ino,
-        }));
-
-      return initialFiles;
+    interface ScannedFile {
+      absolute_path: string;
+      size: number;
+      date_modified: number;
+      date_created: number;
+      ino: string;
     }
 
-    const worker = createFolderWatcherWorker();
-    worker.onmessage = ({
-      data,
-    }: {
-      data: { type: 'remove' | 'error'; value: string } | { type: 'add'; value: FileStats };
-    }) => {
-      if (data.type === 'add') {
-        const { absolutePath } = data.value;
-        // Filter out files located in any excluded subLocations
-        if (this.excludedPaths.some((subLoc) => data.value.absolutePath.startsWith(subLoc.path))) {
-          console.debug('File added to excluded sublocation', absolutePath);
-        } else {
-          console.log(`File ${absolutePath} has been added after initialization`);
-          this.store.addFile(data.value, this);
-        }
-      } else if (data.type === 'remove') {
-        const { value } = data;
-        console.log(`Location "${this.name}": File ${value} has been removed.`);
-        this.store.hideFile(value);
-      } else if (data.type === 'error') {
-        const { value } = data;
-        console.error('Location watch error:', value);
-        AppToaster.show(
-          {
-            message: `An error has occured while ${
-              this.isReady ? 'watching' : 'initializing'
-            } location "${this.name}".`,
-            timeout: 0,
-          },
-          'location-error',
-        );
-      }
-    };
+    const scanned = await invoke<ScannedFile[]>('scan_library', {
+      path: directory,
+      extensions: this.extensions,
+    });
 
-    const WorkerFactory = wrap<typeof FolderWatcherWorker>(worker);
-    this.worker = await new WorkerFactory();
-    // Make a list of all files in this directory, which will be returned when all subdirs have been traversed
-    const initialFiles = await this.worker.watch(directory, this.extensions);
+    const initialFiles: FileStats[] = scanned
+      .filter(
+        (f) => !this.excludedPaths.some((subLoc) => f.absolute_path.startsWith(subLoc.path)),
+      )
+      .map((f) => ({
+        absolutePath: f.absolute_path,
+        size: f.size,
+        dateModified: new Date(f.date_modified),
+        dateCreated: new Date(f.date_created),
+        ino: f.ino,
+      }));
 
-    // Filter out images from excluded sub-locations
-    // TODO: Could also put them in the chokidar ignore property
-    return initialFiles.filter(
-      ({ absolutePath }) =>
-        !this.excludedPaths.some((subLoc) => absolutePath.startsWith(subLoc.path)),
-    );
+    return initialFiles;
   }
 }
 interface IDirectoryTreeItem {

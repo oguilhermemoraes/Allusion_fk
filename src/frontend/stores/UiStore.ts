@@ -53,7 +53,6 @@ export interface IHotkeyMap {
   advancedSearch: string;
 
   // Other
-  openPreviewWindow: string;
   openExternal: string;
   copyImage: string;
   renameFile: string;
@@ -77,7 +76,6 @@ export const defaultHotkeyMap: IHotkeyMap = {
   viewMasonryHorizontal: 'alt + 4',
   search: 'mod + f',
   advancedSearch: 'mod + shift + f',
-  openPreviewWindow: 'space',
   openExternal: 'mod + enter',
   copyImage: 'mod + c',
   renameFile: 'f2',
@@ -145,7 +143,6 @@ class UiStore {
   @observable isHelpCenterOpen: boolean = false;
   @observable isAboutOpen: boolean = false;
   @observable isLocationRecoveryOpen: ID | null = null;
-  @observable isPreviewOpen: boolean = false;
   @observable isAdvancedSearchOpen: boolean = false;
   @observable searchMatchAny = false;
   @observable method: ViewMethod = ViewMethod.Grid;
@@ -341,33 +338,6 @@ class UiStore {
     this.setIsOutlinerOpen(!this.isOutlinerOpen);
   }
 
-  @action.bound openPreviewWindow(): void {
-    // Don't open when no files have been selected
-    if (this.fileSelection.size === 0) {
-      return;
-    }
-
-    // If only one image was selected, open all images, but focus on the selected image. Otherwise, open selected images
-    // TODO: FIXME: Disabled for now: makes it a lot less "snappy", takes a while for the message to come through
-    // this.fileSelection.size === 1
-    //   ? this.rootStore.fileStore.fileList
-    //   : Array.from(this.fileSelection);
-
-    RendererMessenger.sendPreviewFiles({
-      ids: Array.from(this.fileSelection, (file) => file.id),
-      activeImgId: this.getFirstSelectedFileId(),
-      thumbnailDirectory: this.thumbnailDirectory,
-      viewMethod: this.method,
-    });
-
-    this.isPreviewOpen = true;
-
-    // remove focus from element so closing preview with spacebar does not trigger any ui elements
-    if (document.activeElement && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-  }
-
   @action.bound openExternal(warnIfTooManyFiles: boolean = true): void {
     // Don't open when no files have been selected
     if (this.fileSelection.size === 0) {
@@ -496,10 +466,6 @@ class UiStore {
 
   @action.bound closeDuplicatesModal(): void {
     this.isDuplicatesModalOpen = false;
-  }
-
-  @action.bound closePreviewWindow(): void {
-    this.isPreviewOpen = false;
   }
 
   @action.bound setThumbnailDirectory(dir: string = ''): void {
@@ -849,9 +815,6 @@ class UiStore {
       this.toggleSettings();
     } else if (matches(hotkeyMap.toggleHelpCenter)) {
       this.toggleHelpCenter();
-    } else if (matches(hotkeyMap.openPreviewWindow)) {
-      this.openPreviewWindow();
-      e.preventDefault(); // prevent scrolling with space when opening the preview window
     } else if (matches(hotkeyMap.openExternal)) {
       this.openExternal();
     } else if (matches(hotkeyMap.copyImage)) {

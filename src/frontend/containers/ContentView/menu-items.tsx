@@ -45,12 +45,6 @@ export const FileViewerMenuItems = ({ file }: { file: ClientFile }) => {
     uiStore.copyImageFile(file);
   };
 
-  const handlePreviewWindow = () => {
-    // Only clear selection if file is not already selected
-    uiStore.selectFile(file, !uiStore.fileSelection.has(file));
-    uiStore.openPreviewWindow();
-  };
-
   const handleSearchSimilar = (
     e: React.MouseEvent,
     crit: ClientFileSearchCriteria | ClientFileSearchCriteria[],
@@ -71,11 +65,6 @@ export const FileViewerMenuItems = ({ file }: { file: ClientFile }) => {
         onClick={() => uiStore.openRenameFileDialog(file)}
         text="Rename File"
         icon={IconSet.EDIT}
-      />
-      <MenuItem
-        onClick={handlePreviewWindow}
-        text="Open In Preview Window"
-        icon={IconSet.PREVIEW}
       />
       <MenuItem
         onClick={uiStore.openToolbarTagPopover}
@@ -178,11 +167,6 @@ export const SlideFileViewerMenuItems = observer(({ file }: { file: ClientFile }
     uiStore.copyImageFile(file);
   };
 
-  const handlePreviewWindow = () => {
-    uiStore.selectFile(file, true);
-    uiStore.openPreviewWindow();
-  };
-
   return (
     <>
       <MenuItem onClick={handleCopyImage} text="Copy Image" icon={IconSet.MEDIA} />
@@ -190,11 +174,6 @@ export const SlideFileViewerMenuItems = observer(({ file }: { file: ClientFile }
         onClick={() => uiStore.openRenameFileDialog(file)}
         text="Rename File"
         icon={IconSet.EDIT}
-      />
-      <MenuItem
-        onClick={handlePreviewWindow}
-        text="Open In Preview Window"
-        icon={IconSet.PREVIEW}
       />
 
       <MenuSubItem text="Upscale filtering..." icon={IconSet.VIEW_GRID}>

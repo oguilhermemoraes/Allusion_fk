@@ -1,5 +1,3 @@
-import { ID } from '../api/id';
-import { ViewMethod } from '../frontend/stores/UiStore';
 
 /**
  * All types of messages between the main and renderer process in one place, with type safety.
@@ -60,18 +58,6 @@ export type StoreFileMessage = {
 export const STORE_FILE_REPLY = 'STORE_FILE_REPLY';
 export type StoreFileReplyMessage = {
   downloadPath: string;
-};
-
-//////////////// Preview window ////////////////
-export const CLOSED_PREVIEW_WINDOW = 'CLOSED_PREVIEW_WINDOW';
-
-export const SEND_PREVIEW_FILES = 'SEND_PREVIEW_FILES_MESSAGE';
-export const RECEIEVE_PREVIEW_FILES = 'RECEIEVE_PREVIEW_FILES_MESSAGE';
-export type PreviewFilesMessage = {
-  ids: ID[];
-  activeImgId?: ID;
-  thumbnailDirectory: string;
-  viewMethod: ViewMethod;
 };
 
 /////////////// Drag n drop export ///////////////

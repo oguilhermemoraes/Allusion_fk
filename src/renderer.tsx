@@ -8,18 +8,17 @@ import './style.scss';
 
 import Dexie from 'dexie';
 import fse from 'fs-extra';
-import { autorun, reaction, runInAction } from 'mobx';
+import { autorun, reaction } from 'mobx';
 import React from 'react';
 import { Root, createRoot } from 'react-dom/client';
 
 import { IS_DEV } from 'common/process';
-import { IS_PREVIEW_WINDOW, WINDOW_STORAGE_KEY } from 'common/window';
+import { WINDOW_STORAGE_KEY } from 'common/window';
 import { RendererMessenger } from 'src/ipc/renderer';
 import Backend from './backend/backend';
 import App from './frontend/App';
 import StoreProvider from './frontend/contexts/StoreContext';
 import Overlay from './frontend/Overlay';
-import PreviewApp from './frontend/Preview';
 import { FILE_STORAGE_KEY } from './frontend/stores/FileStore';
 import RootStore from './frontend/stores/RootStore';
 import { PREFERENCES_STORAGE_KEY } from './frontend/stores/UiStore';
@@ -40,11 +39,7 @@ async function main(): Promise<void> {
 
   const db = dbInit(DB_NAME);
 
-  if (!IS_PREVIEW_WINDOW) {
-    await runMainApp(db, root);
-  } else {
-    await runPreviewApp(db, root);
-  }
+  await runMainApp(db, root);
 }
 
 async function runMainApp(db: Dexie, root: Root): Promise<void> {
@@ -114,84 +109,9 @@ async function runMainApp(db: Dexie, root: Root): Promise<void> {
 
   RendererMessenger.onFullScreenChanged((val) => rootStore.uiStore.setFullScreen(val));
 
-  RendererMessenger.onClosedPreviewWindow(() => {
-    rootStore.uiStore.closePreviewWindow();
-  });
-
   // Runs operations to run before closing the app, e.g. closing child-processes
   window.addEventListener('beforeunload', () => {
     rootStore.close();
-  });
-}
-
-async function runPreviewApp(db: Dexie, root: Root): Promise<void> {
-  const backend = new Backend(db, () => {});
-  const rootStore = await RootStore.preview(backend, new BackupScheduler(db, ''));
-
-  RendererMessenger.initialized();
-
-  await new Promise<void>((executor) => {
-    let initRender: (() => void) | undefined = executor;
-
-    RendererMessenger.onReceivePreviewFiles(
-      async ({ ids, thumbnailDirectory, viewMethod, activeImgId }) => {
-        rootStore.uiStore.setThumbnailDirectory(thumbnailDirectory);
-        rootStore.uiStore.setMethod(viewMethod);
-        rootStore.uiStore.enableSlideMode();
-
-        runInAction(() => {
-          rootStore.uiStore.isInspectorOpen = false;
-        });
-
-        const files = await backend.fetchFilesByID(ids);
-
-        // If a file has a location we don't know about (e.g. when a new location was added to the main window),
-        // re-fetch the locations in the preview window
-        const hasNewLocation = runInAction(() =>
-          files.some((f) => !rootStore.locationStore.locationList.find((l) => l.id === f.id)),
-        );
-        if (hasNewLocation) {
-          await rootStore.locationStore.init();
-        }
-
-        await rootStore.fileStore.updateFromBackend(files);
-        rootStore.uiStore.setFirstItem((activeImgId && ids.indexOf(activeImgId)) || 0);
-
-        if (initRender !== undefined) {
-          initRender();
-          initRender = undefined;
-        }
-      },
-    );
-  });
-
-  autorun(() => {
-    document.title = rootStore.getWindowTitle();
-  });
-
-  // Render our react components in the div with id 'app' in the html file
-  // The Provider component provides the state management for the application
-  root.render(
-    <StoreProvider value={rootStore}>
-      <PreviewApp />
-      <Overlay />
-    </StoreProvider>,
-  );
-
-  // Close preview with space
-  window.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === ' ' || e.key === 'Escape') {
-      rootStore.uiStore.clearFileSelection();
-      rootStore.fileStore.clearFileList();
-      rootStore.uiStore.enableSlideMode();
-
-      // remove focus from element so closing preview with spacebar does not trigger any ui elements
-      if (document.activeElement && document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
-
-      window.close();
-    }
   });
 }
 

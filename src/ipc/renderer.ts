@@ -3,7 +3,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import path from 'path';
 import {
   DragExportMessage,
-  PreviewFilesMessage,
   StoreFileMessage,
   StoreFileReplyMessage,
   ThemeMessage,
@@ -241,18 +240,6 @@ export class RendererMessenger {
 
   static startDragExport = (_msg: DragExportMessage): void => {
     // Drag-out has no Tauri equivalent; cut per #62.
-  };
-
-  static sendPreviewFiles = (_msg: PreviewFilesMessage): void => {
-    // Quick View: to be migrated to Tauri multi-window in #58.
-  };
-
-  static onReceivePreviewFiles = (_cb: (msg: PreviewFilesMessage) => void): void => {
-    // Quick View: to be migrated to Tauri multi-window in #58.
-  };
-
-  static onClosedPreviewWindow = (_cb: () => void): void => {
-    // Quick View: to be migrated to Tauri multi-window in #58.
   };
 
   static onMaximize = (cb: () => void): (() => void) => {

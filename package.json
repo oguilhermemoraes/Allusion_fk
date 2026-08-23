@@ -61,7 +61,6 @@
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "2",
     "ag-psd": "^15.0.0",
-    "chokidar": "^3.5.3",
     "comlink": "^4.4.1",
     "dexie": "^3.2.3",
     "dexie-export-import": "^1.0.3",

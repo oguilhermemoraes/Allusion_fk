@@ -16,10 +16,6 @@ jest.mock('../src/frontend/services/TauriFolderWatcher', () => ({
   },
 }));
 
-jest.mock('../src/frontend/workers/folderWatcherFactory', () => ({
-  createFolderWatcherWorker: jest.fn(),
-}));
-
 jest.mock('../common/tauri', () => ({
   isTauri: jest.fn(),
 }));
