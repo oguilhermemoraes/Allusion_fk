@@ -169,7 +169,12 @@ class ImageLoader {
       thumbnailPath: stripVersion(file.thumbnailPath),
     };
 
-    if (await fse.pathExists(thumbnailPath)) {
+    // Videos indexed by older versions may carry 0x0 dimensions (metadata was
+    // read before the first frame was decoded). Regenerating their thumbnail
+    // also recovers the real dimensions, which the grid needs for aspect ratio.
+    const needsDimensionHeal = isVideoExtension(extension) && file.width === 0 && file.height === 0;
+
+    if (!needsDimensionHeal && (await fse.pathExists(thumbnailPath))) {
       // Web formats produce a deterministic downscale of the source, so a
       // present thumbnail is always current. Only formats with mutable sources
       // (PSD, KRA, ...) need the mtime comparison. Skipping the two `stat`
@@ -220,10 +225,16 @@ class ImageLoader {
       case 'video': {
         try {
           const meta = await generateVideoThumbnail(absolutePath, thumbnailPath, thumbnailMaxSize);
-          if (meta.duration && (!file.duration || file.duration === 0)) {
-            file.setDuration(meta.duration);
-          }
-          updateThumbnailPath(file, thumbnailPath);
+          runInAction(() => {
+            if (meta.duration && (!file.duration || file.duration === 0)) {
+              file.setDuration(meta.duration);
+            }
+            // Heal 0x0 records so the masonry layout uses the real aspect ratio
+            if (meta.width > 0 && meta.height > 0 && (file.width === 0 || file.height === 0)) {
+              file.setDimensions(meta.width, meta.height);
+            }
+            updateThumbnailPath(file, thumbnailPath);
+          });
         } catch (e) {
           console.warn('Could not generate video thumbnail', absolutePath, e);
           throw e;

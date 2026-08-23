@@ -835,10 +835,13 @@ class UiStore {
     };
     const { hotkeyMap } = this;
     let isMatch = true;
+    // Bare digits rate the open item while slide mode is open (#53): don't let
+    // the same keypress also flip the UI panels in that context.
+    const skipPanelToggles = this.isSlideMode;
     // UI
-    if (matches(hotkeyMap.toggleOutliner)) {
+    if (!skipPanelToggles && matches(hotkeyMap.toggleOutliner)) {
       this.toggleOutliner();
-    } else if (matches(hotkeyMap.toggleInspector)) {
+    } else if (!skipPanelToggles && matches(hotkeyMap.toggleInspector)) {
       this.toggleInspector();
     } else if (matches(hotkeyMap.openTagEditor)) {
       // Windows

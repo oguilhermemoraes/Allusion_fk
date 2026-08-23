@@ -10,7 +10,6 @@ import { OrderDirection } from '../../api/data-storage-search';
 import {
   DEFAULT_ENABLED_EXTENSIONS,
   FileDTO,
-  IMG_EXTENSIONS,
   IMG_EXTENSIONS_TYPE,
 } from '../../api/file';
 import { ID, generateId } from '../../api/id';
@@ -631,6 +630,10 @@ export async function pathToIFile(
     id: generateId(),
     locationId: loc.id,
     tags: [],
+    // Index every file with an explicit unrated value: records missing the
+    // property are not part of Dexie's 'rating' index, which would make the
+    // advanced search "rating equals 0" silently miss them (#53).
+    rating: 0,
     dateAdded: now,
     dateModified: now,
     dateLastIndexed: now,

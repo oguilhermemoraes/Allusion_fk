@@ -42,7 +42,7 @@ export async function getVideoMetadata(videoPath: string): Promise<VideoMetadata
 
       const cleanup = () => {
         clearTimeout(timeout);
-        video.onloadedmetadata = null;
+        video.onloadeddata = null;
         video.onerror = null;
         video.pause();
         video.removeAttribute('src');
@@ -50,7 +50,11 @@ export async function getVideoMetadata(videoPath: string): Promise<VideoMetadata
         video.remove();
       };
 
-      video.onloadedmetadata = () => {
+      // `loadeddata` instead of `loadedmetadata`: some MP4s report duration
+      // while still having 0x0 dimensions at the metadata stage, which used to
+      // persist 0-width/height records that broke the grid aspect ratio. At
+      // the data stage both dimensions are guaranteed.
+      video.onloadeddata = () => {
         const duration = video.duration || 0;
         const width = video.videoWidth || 0;
         const height = video.videoHeight || 0;
@@ -80,25 +84,30 @@ export async function generateVideoThumbnail(
     return { width: 0, height: 0, duration: 0 };
   }
 
-  return runExclusive(() => {
+    return runExclusive(() => {
     return new Promise<VideoMetadata>((resolve, reject) => {
       const video = document.createElement('video');
-      video.preload = 'metadata';
+      video.preload = 'auto';
       video.muted = true;
       video.playsInline = true;
+      // Required to draw frames onto a canvas without tainting it: the asset://
+      // origin differs from the window origin, and `canvas.toBlob()` throws a
+      // SecurityError on non-origin-clean bitmaps. The Tauri asset protocol
+      // responds with `Access-Control-Allow-Origin: <window-origin>`, so a CORS
+      // request succeeds and keeps the canvas clean.
+      video.crossOrigin = 'anonymous';
 
       const fileUrl = encodeFilePath(videoPath);
       video.src = fileUrl;
 
       const timeout = setTimeout(() => {
         cleanup();
-        reject(new Error(`Timeout generating video thumbnail for ${videoPath}`));
+        reject(new Error(`[video-thumb] timeout (5s) waiting for first frame of ${videoPath}`));
       }, 5000);
 
       const cleanup = () => {
         clearTimeout(timeout);
-        video.onloadedmetadata = null;
-        video.onseeked = null;
+        video.onloadeddata = null;
         video.onerror = null;
         video.pause();
         video.removeAttribute('src');
@@ -106,14 +115,12 @@ export async function generateVideoThumbnail(
         video.remove();
       };
 
-      video.onloadedmetadata = () => {
-        const duration = video.duration || 0;
-        // Seek to ~0.5 second or 25% of duration to get a representative non-black frame
-        const seekTime = duration > 1.0 ? 0.5 : duration * 0.25;
-        video.currentTime = seekTime;
-      };
-
-      video.onseeked = async () => {
+      // Capture the FIRST decoded frame instead of seeking: seeking depends on
+      // range-request behavior and moov placement, and never firing `seeked`
+      // silently kills thumbnail generation. `loadeddata` fires as soon as the
+      // first frame is available at the current position, which for local files
+      // is effectively immediate.
+      video.onloadeddata = () => {
         try {
           const width = video.videoWidth;
           const height = video.videoHeight;
@@ -121,7 +128,7 @@ export async function generateVideoThumbnail(
 
           if (width === 0 || height === 0) {
             cleanup();
-            reject(new Error('Video dimensions are 0'));
+            reject(new Error('[video-thumb] decoded frame has zero dimensions'));
             return;
           }
 
@@ -143,7 +150,7 @@ export async function generateVideoThumbnail(
           const ctx = canvas.getContext('2d');
           if (!ctx) {
             cleanup();
-            reject(new Error('Failed to get canvas 2d context'));
+            reject(new Error('[video-thumb] failed to get canvas 2d context'));
             return;
           }
 
@@ -153,12 +160,14 @@ export async function generateVideoThumbnail(
             async (blob) => {
               cleanup();
               if (!blob) {
-                reject(new Error('Failed to create blob from canvas'));
+                reject(new Error('[video-thumb] canvas.toBlob returned null'));
                 return;
               }
               try {
                 const arrayBuffer = await blob.arrayBuffer();
-                await fse.outputFile(thumbnailPath, Buffer.from(arrayBuffer));
+                // NOTE: no `Buffer` here — the Tauri WebView has no Node
+                // globals. The fs shim accepts ArrayBuffer/Uint8Array.
+                await fse.outputFile(thumbnailPath, new Uint8Array(arrayBuffer));
                 resolve({ width, height, duration });
               } catch (err) {
                 reject(err);
@@ -175,7 +184,7 @@ export async function generateVideoThumbnail(
 
       video.onerror = () => {
         cleanup();
-        reject(new Error(`Failed to load video element for ${videoPath}`));
+        reject(new Error(`[video-thumb] failed to load video element for ${videoPath}`));
       };
     });
   });

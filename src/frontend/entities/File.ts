@@ -48,8 +48,10 @@ export class ClientFile {
   readonly absolutePath: string;
   readonly tags: ObservableSet<ClientTag>;
   readonly size: number;
-  readonly width: number;
-  readonly height: number;
+  /** Media dimensions; observable so late-extracted video dimensions can heal the grid layout (#54). */
+  @observable width: number;
+  /** Media dimensions; observable so late-extracted video dimensions can heal the grid layout (#54). */
+  @observable height: number;
   readonly dateAdded: Date;
   readonly dateCreated: Date;
   readonly dateModified: Date;
@@ -144,6 +146,12 @@ export class ClientFile {
 
   @action.bound setDuration(duration: number): void {
     this.duration = duration;
+  }
+
+  /** Updates extracted media dimensions (e.g. after a video frame is decoded). */
+  @action.bound setDimensions(width: number, height: number): void {
+    this.width = width;
+    this.height = height;
   }
 
   @action.bound setPalette(palette: PaletteColorDTO[]): void {

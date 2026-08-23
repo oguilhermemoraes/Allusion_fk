@@ -419,7 +419,6 @@
     > svg {
       width: 100%;
       height: auto;
-      filter: drop-shadow(0px 3px 4px rgba(0, 0, 0, 0.5));
     }
 
     &:hover {
@@ -433,6 +432,20 @@
 
   .side-button-right {
     right: 0;
+  }
+
+  // Seek bar of the video player: rendered identically to the sliders used in
+  // the grid customization menus (default webkit track + accent thumb, see
+  // [role='menuitemslider'] in controls/menu.scss).
+  input[type='range'].video-seek-slider {
+    &::-webkit-slider-thumb {
+      background: var(--accent-color);
+      cursor: pointer;
+    }
+
+    &:focus::-webkit-slider-thumb {
+      filter: brightness(1.1);
+    }
   }
 
   img {
