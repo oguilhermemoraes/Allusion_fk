@@ -4,8 +4,10 @@
   "version": "1.0.0-rc.10",
   "identifier": "com.allusion-app.allusion",
   "build": {
-    "frontendDist": "../build",
-    "beforeBuildCommand": "yarn production"
+    "beforeDevCommand": "yarn dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "yarn build",
+    "frontendDist": "../build"
   },
   "app": {
     "windows": [
@@ -66,7 +68,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
