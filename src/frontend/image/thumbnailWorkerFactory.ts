@@ -6,7 +6,9 @@ export const createThumbnailWorkers = (count: number): Worker[] => {
   const workers: Worker[] = [];
   for (let i = 0; i < count; i++) {
     workers.push(
-      new Worker(new URL('src/frontend/workers/thumbnailGenerator.worker', import.meta.url)),
+      new Worker(new URL('../workers/thumbnailGenerator.worker.ts', import.meta.url), {
+        type: 'module',
+      }),
     );
   }
   return workers;
