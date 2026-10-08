@@ -1,3 +1,4 @@
+import { configure, observable } from 'mobx';
 import { MasonryNativeAdapter } from '../src/frontend/containers/ContentView/Masonry/MasonryNativeAdapter';
 
 jest.mock('@tauri-apps/api/core', () => ({
@@ -132,5 +133,35 @@ describe('MasonryNativeAdapter', () => {
     const adapter = new MasonryNativeAdapter();
     expect(adapter.getTransform(0)).toEqual([0, 0, 0, 0]);
     expect(adapter.getTransform(999)).toEqual([0, 0, 0, 0]);
+  });
+
+  test('compute reads dimensions without outside-reaction warnings (perf: dir add floods console)', async () => {
+    configure({ observableRequiresReaction: true });
+    try {
+      mockedInvoke.mockResolvedValue({ total_height: 206, transforms: [] });
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      try {
+        const obsImgs = observable([
+          { width: 100, height: 50 },
+          { width: 50, height: 100 },
+        ]);
+        const adapter = new MasonryNativeAdapter();
+        // NOTE: read `.length` up-front: reading it here (outside an action)
+        // would itself warn, and the test must only assert on `compute`.
+        await adapter.compute(obsImgs, 2, 320, {
+          type: 'Vertical',
+          thumbSize: 100,
+          padding: 8,
+        });
+        const mobxWarnings = warnSpy.mock.calls.filter((args) =>
+          String(args[0]).includes('reactive context'),
+        );
+        expect(mobxWarnings).toHaveLength(0);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    } finally {
+      configure({ observableRequiresReaction: false });
+    }
   });
 });
