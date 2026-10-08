@@ -39,6 +39,10 @@ const MasonryRenderer = observer(({ contentRect, select, lastSelectionIndex }: G
 
   const viewMethod = uiStore.method as SupportedViewMethod;
   const numImages = fileStore.fileList.length;
+  // Read in render (an observer => reactive context) and pass it down: reading
+  // uiStore inside the async effects below warns on every layout recompute,
+  // flooding the console during indexing (#79).
+  const gridGap = uiStore.gridGap;
 
   // Vertical keyboard navigation with lastSelectionIndex
   // note: horizontal keyboard navigation is handled elsewhere: LayoutSwitcher
@@ -100,7 +104,7 @@ const MasonryRenderer = observer(({ contentRect, select, lastSelectionIndex }: G
           {
             thumbSize: thumbnailSize,
             type: ViewMethodLayoutDict[viewMethod],
-            padding: uiStore.gridGap,
+            padding: gridGap,
           },
         );
         setContainerHeight(containerHeight);
@@ -127,7 +131,7 @@ const MasonryRenderer = observer(({ contentRect, select, lastSelectionIndex }: G
             {
               thumbSize: thumbnailSize,
               type: ViewMethodLayoutDict[viewMethod],
-              padding: uiStore.gridGap,
+              padding: gridGap,
             },
           );
           setContainerHeight(containerHeight);
@@ -173,10 +177,10 @@ const MasonryRenderer = observer(({ contentRect, select, lastSelectionIndex }: G
   // Re-compute when the environment changes (container width, thumbnail size, view method)
   useEffect(() => {
     if (containerHeight !== undefined && containerWidth > 100) {
-      handleResize.current(containerWidth, thumbnailSize, viewMethod, uiStore.gridGap);
+      handleResize.current(containerWidth, thumbnailSize, viewMethod, gridGap);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerWidth, handleResize, thumbnailSize, viewMethod, uiStore.gridGap]);
+  }, [containerWidth, handleResize, thumbnailSize, viewMethod, gridGap]);
 
   return !containerHeight ? (
     <></>
