@@ -8,152 +8,153 @@
 //
 // This shim implements the handful of path functions the renderer actually
 // uses with native Windows semantics. On other platforms it simply re-exports
-// `path-browserify`. CommonJS on purpose (see os-shim.js).
+// `path-browserify`.
+//
+// ESM (not CJS): `vite dev` serves source files as native ESM, so `require` /
+// `module.exports` break the dev server. Named + default exports cover all
+// consumer shapes: `import path from 'path'`, `import * as path from 'path'`
+// and CJS `require('path')` (via bundler/pre-bundle interop).
 
-const browserPath = require('path-browserify');
+import browserPath from 'path-browserify';
 
-const IS_WIN = typeof process !== 'undefined' && process.platform === 'win32';
+const proc = typeof process !== 'undefined' ? process : undefined;
+const IS_WIN = proc !== undefined && proc.platform === 'win32';
 
-if (!IS_WIN) {
-  module.exports = browserPath;
-  module.exports.default = browserPath;
-} else {
-  const SEP = '\\';
-  const SPLIT_RE = /[\\/]+/;
+const SEP = '\\';
+const SPLIT_RE = /[\\/]+/;
 
-  const split = (p) => String(p).split(SPLIT_RE);
+const split = (p) => String(p).split(SPLIT_RE);
 
-  function basename(p, ext) {
-    const parts = split(p);
-    let name = parts.length > 0 && parts[parts.length - 1] !== '' ? parts[parts.length - 1] : '';
-    if (ext && name.toLowerCase().endsWith(String(ext).toLowerCase())) {
-      name = name.slice(0, -ext.length);
+function basename(p, ext) {
+  const parts = IS_WIN ? split(p) : String(p).split('/');
+  let name = parts.length > 0 && parts[parts.length - 1] !== '' ? parts[parts.length - 1] : '';
+  if (ext && name.toLowerCase().endsWith(String(ext).toLowerCase())) {
+    name = name.slice(0, -ext.length);
+  }
+  return name;
+}
+
+function extname(p) {
+  const name = basename(p);
+  const i = name.lastIndexOf('.');
+  if (i <= 0) {
+    return '';
+  }
+  return name.slice(i);
+}
+
+function dirname(p) {
+  const parts = IS_WIN ? split(p) : String(p).split('/');
+  parts.pop();
+  if (parts.length === 0) {
+    return '.';
+  }
+  return parts.join(IS_WIN ? SEP : '/');
+}
+
+function isAbsolute(p) {
+  if (!IS_WIN) return browserPath.isAbsolute(p);
+  const s = String(p);
+  return /^[a-zA-Z]:[\\/]/.test(s) || /^[\\/][\\/]/.test(s) || /^[\\/]/.test(s);
+}
+
+function normalize(p) {
+  if (!IS_WIN) return browserPath.normalize(p);
+  const s = String(p);
+  const abs = isAbsolute(s);
+  const hasDrive = /^[a-zA-Z]:/.test(s);
+  const drive = hasDrive ? s.slice(0, 2) : '';
+  const rest = hasDrive ? s.slice(2) : s;
+  const parts = [];
+  for (const seg of rest.split(SPLIT_RE)) {
+    if (seg === '' || seg === '.') {
+      continue;
     }
-    return name;
-  }
-
-  function extname(p) {
-    const name = basename(p);
-    const i = name.lastIndexOf('.');
-    if (i <= 0) {
-      return '';
+    if (seg === '..') {
+      if (parts.length > 0 && parts[parts.length - 1] !== '..') {
+        parts.pop();
+      } else if (!abs) {
+        parts.push(seg);
+      }
+      continue;
     }
-    return name.slice(i);
+    parts.push(seg);
   }
+  let out = parts.join(SEP);
+  if (hasDrive) {
+    out = drive + SEP + out;
+  } else if (abs && (s.startsWith('/') || s.startsWith('\\'))) {
+    out = SEP + out;
+  }
+  return out || (hasDrive ? drive + SEP : abs ? SEP : '.');
+}
 
-  function dirname(p) {
-    const parts = split(p);
-    parts.pop();
-    if (parts.length === 0) {
-      return '.';
+function join(...parts) {
+  if (!IS_WIN) return browserPath.join(...parts);
+  const pieces = [];
+  for (const part of parts) {
+    if (part === undefined || part === null || part === '') {
+      continue;
     }
-    return parts.join(SEP);
-  }
-
-  function isAbsolute(p) {
-    const s = String(p);
-    return /^[a-zA-Z]:[\\/]/.test(s) || /^[\\/][\\/]/.test(s) || /^[\\/]/.test(s);
-  }
-
-  function normalize(p) {
-    const s = String(p);
-    const abs = isAbsolute(s);
-    const hasDrive = /^[a-zA-Z]:/.test(s);
-    const drive = hasDrive ? s.slice(0, 2) : '';
-    const rest = hasDrive ? s.slice(2) : s;
-    const parts = [];
-    for (const seg of rest.split(SPLIT_RE)) {
+    for (const seg of split(part)) {
       if (seg === '' || seg === '.') {
         continue;
       }
       if (seg === '..') {
-        if (parts.length > 0 && parts[parts.length - 1] !== '..') {
-          parts.pop();
-        } else if (!abs) {
-          parts.push(seg);
+        if (pieces.length > 0 && pieces[pieces.length - 1] !== '..') {
+          pieces.pop();
+        } else {
+          pieces.push(seg);
         }
         continue;
       }
-      parts.push(seg);
+      pieces.push(seg);
     }
-    let out = parts.join(SEP);
-    if (hasDrive) {
-      out = drive + SEP + out;
-    } else if (abs && (s.startsWith('/') || s.startsWith('\\'))) {
-      out = SEP + out;
-    }
-    return out || (hasDrive ? drive + SEP : abs ? SEP : '.');
   }
-
-  function join(...parts) {
-    const pieces = [];
-    for (const part of parts) {
-      if (part === undefined || part === null || part === '') {
-        continue;
-      }
-      for (const seg of split(part)) {
-        if (seg === '' || seg === '.') {
-          continue;
-        }
-        if (seg === '..') {
-          if (pieces.length > 0 && pieces[pieces.length - 1] !== '..') {
-            pieces.pop();
-          } else {
-            pieces.push(seg);
-          }
-          continue;
-        }
-        pieces.push(seg);
-      }
-    }
-    if (pieces.length === 0) {
-      return '.';
-    }
-    return pieces.join(SEP);
+  if (pieces.length === 0) {
+    return '.';
   }
-
-  function resolve(...parts) {
-    return normalize(join(...parts));
-  }
-
-  function parse(p) {
-    const s = String(p);
-    const root = /^[a-zA-Z]:[\\/]/.test(s) ? s.slice(0, 3) : '';
-    const rest = root ? s.slice(3) : s;
-    const parts = rest.split(SPLIT_RE);
-    const base = parts[parts.length - 1] || '';
-    const dir = root + (parts.length > 1 ? parts.slice(0, -1).join(SEP) : '');
-    const ext = extname(base);
-    return { root, dir, base, ext, name: ext ? base.slice(0, -ext.length) : base };
-  }
-
-  function format(obj) {
-    return obj.dir ? join(obj.dir, obj.base) : obj.base;
-  }
-
-  function relative(from, to) {
-    // Not used by the renderer; best-effort approximation.
-    return basename(to);
-  }
-
-  const winPath = {
-    sep: SEP,
-    delimiter: ';',
-    basename,
-    dirname,
-    extname,
-    isAbsolute,
-    normalize,
-    join,
-    resolve,
-    parse,
-    format,
-    relative,
-    posix: browserPath,
-    win32: null,
-  };
-  winPath.win32 = winPath;
-
-  module.exports = winPath;
-  module.exports.default = winPath;
+  return pieces.join(SEP);
 }
+
+function resolve(...parts) {
+  if (!IS_WIN) return browserPath.resolve(...parts);
+  return normalize(join(...parts));
+}
+
+function parse(p) {
+  if (!IS_WIN) return browserPath.parse(p);
+  const s = String(p);
+  const root = /^[a-zA-Z]:[\\/]/.test(s) ? s.slice(0, 3) : '';
+  const rest = root ? s.slice(3) : s;
+  const parts = rest.split(SPLIT_RE);
+  const base = parts[parts.length - 1] || '';
+  const dir = root + (parts.length > 1 ? parts.slice(0, -1).join(SEP) : '');
+  const ext = extname(base);
+  return { root, dir, base, ext, name: ext ? base.slice(0, -ext.length) : base };
+}
+
+function format(obj) {
+  if (!IS_WIN) return browserPath.format(obj);
+  return obj.dir ? join(obj.dir, obj.base) : obj.base;
+}
+
+function relative(from, to) {
+  if (!IS_WIN) return browserPath.relative(from, to);
+  // Not used by the renderer; best-effort approximation.
+  return basename(to);
+}
+
+const sep = IS_WIN ? SEP : browserPath.sep;
+const delimiter = IS_WIN ? ';' : browserPath.delimiter;
+const posix = browserPath;
+const win32 = IS_WIN
+  ? { sep, delimiter, basename, dirname, extname, isAbsolute, normalize, join, resolve, parse, format, relative, posix }
+  : browserPath.win32;
+
+const pathShim = IS_WIN
+  ? { sep, delimiter, basename, dirname, extname, isAbsolute, normalize, join, resolve, parse, format, relative, posix, win32 }
+  : browserPath;
+
+export { sep, delimiter, basename, dirname, extname, isAbsolute, normalize, join, resolve, parse, format, relative, posix, win32 };
+export default pathShim;

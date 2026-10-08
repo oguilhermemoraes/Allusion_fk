@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { isTauri } from 'common/tauri';
 
 /**
@@ -14,8 +15,6 @@ export async function registerAssetScope(paths: string[]): Promise<void> {
     return;
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { invoke } = require('@tauri-apps/api/core');
     await invoke('register_asset_scope', { paths: validPaths });
   } catch (e) {
     console.warn('Could not register asset scope:', e);

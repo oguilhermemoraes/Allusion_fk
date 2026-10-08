@@ -1,5 +1,7 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { open as openDialog, message as messageDialog } from '@tauri-apps/plugin-dialog';
+import fse from 'fs-extra';
 import path from 'path';
 import {
   DragExportMessage,
@@ -49,9 +51,7 @@ export class RendererMessenger {
 
   static showOpenDialog = async (options: any): Promise<any> => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { open } = require('@tauri-apps/plugin-dialog');
-      const selected = await open({
+      const selected = await openDialog({
         directory: options?.properties?.includes('openDirectory'),
         multiple: options?.properties?.includes('multiSelections'),
         filters: options?.filters,
@@ -68,8 +68,6 @@ export class RendererMessenger {
 
   static showMessageBox = async (options: any): Promise<any> => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { message } = require('@tauri-apps/plugin-dialog');
       const buttons: string[] = options?.buttons ?? ['OK'];
       const stripAmp = (label: string) => label.replace(/&/g, '');
       const [b0, b1, b2] = buttons.map(stripAmp);
@@ -83,7 +81,7 @@ export class RendererMessenger {
       }
       const kind =
         options?.type === 'error' ? 'error' : options?.type === 'warning' ? 'warning' : 'info';
-      const result = await message(options?.message ?? '', {
+      const result = await messageDialog(options?.message ?? '', {
         title: options?.title,
         kind,
         buttons: tauriButtons,
@@ -153,8 +151,6 @@ export class RendererMessenger {
     if (isTauri()) {
       return await tauriInvoke<string>('create_folder', { parentPath, folderName });
     }
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fse = require('fs-extra');
     const target = path.join(parentPath, folderName);
     await fse.ensureDir(target);
     return target;
@@ -164,8 +160,6 @@ export class RendererMessenger {
     if (isTauri()) {
       return await tauriInvoke<string>('rename_path', { oldPath, newName });
     }
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fse = require('fs-extra');
     const target = path.join(path.dirname(oldPath), newName);
     await fse.move(oldPath, target);
     return target;

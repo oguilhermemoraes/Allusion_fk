@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
+import { invoke } from '@tauri-apps/api/core';
 import { isTauri } from 'common/tauri';
 
 /**
@@ -51,8 +52,6 @@ const DevToolsContextMenu: React.FC = () => {
       <button
         type="button"
         onClick={() => {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const { invoke } = require('@tauri-apps/api/core');
           invoke('open_devtools').catch(() => {});
         }}
       >
