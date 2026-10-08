@@ -74,5 +74,7 @@ function hashString(s: string) {
  */
 export function getExtraResourcePath(resourcePath: string): string {
   const relativeResourcesPath = (IS_DEV ? '../' : '../../') + 'resources';
-  return path.resolve(__dirname, relativeResourcesPath, resourcePath);
+  // No `__dirname` in the Vite dev server / WebView (webpack polyfilled it).
+  const base = typeof __dirname !== 'undefined' ? __dirname : '/';
+  return path.resolve(base, relativeResourcesPath, resourcePath);
 }
