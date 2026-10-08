@@ -1,6 +1,6 @@
 import React from 'react';
 import { observer } from 'mobx-react-lite';
-import LOGO_FC from 'resources/logo/svg/full-color/allusion-logomark-fc.svg';
+import LOGO_FC from 'resources/logo/svg/full-color/allusion-logomark-fc.svg?react';
 import { IconSet, Button, ButtonGroup, SVG } from 'widgets';
 
 import { useStore } from '../../contexts/StoreContext';
