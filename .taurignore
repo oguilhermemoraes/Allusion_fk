@@ -2,3 +2,4 @@ src-tauri/tmp/
 src-tauri/tmp/**
 src-tauri/target/
 build/
+ct-shader/
