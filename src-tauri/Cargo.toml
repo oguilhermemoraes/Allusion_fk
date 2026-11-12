@@ -31,6 +31,8 @@ image = { version = "0.24", default-features = false, features = ["jpeg", "png",
 trash = "5"
 open = "5"
 arboard = "3.4"
+rusqlite = { version = "0.42", features = ["bundled", "functions"] }
+chrono = "0.4"
 
 [features]
 default = ["custom-protocol"]
