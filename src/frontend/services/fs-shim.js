@@ -1,10 +1,11 @@
 // Browser/WebView-safe replacement for the Node.js `fs` / `fs-extra` modules.
 // Real filesystem work happens through Tauri `invoke()` commands.
 // Tauri-only: the app no longer has an Electron/web fallback (see umbrella #63).
-// CommonJS on purpose (see os-shim.js).
+// ESM (not CJS): `vite dev` serves source files as native ESM (see path-shim.js).
 
-const { invoke } = require('@tauri-apps/api/core');
-const { Readable, Writable } = require('./stream-shim.js');
+import { invoke } from '@tauri-apps/api/core';
+import { Readable, Writable } from './stream-shim.js';
+import processShim from './process-shim.js';
 
 const emptyBuffer = () => {
   if (typeof Buffer !== 'undefined') return Buffer.from('');
@@ -149,16 +150,49 @@ const writeFileSync = () => {};
 
 const createReadStream = () => {
   const rs = new Readable();
-  process.nextTick(() => rs.emit('end'));
+  processShim.nextTick(() => rs.emit('end'));
   return rs;
 };
 const createWriteStream = () => {
   const ws = new Writable();
-  process.nextTick(() => ws.emit('open'));
+  processShim.nextTick(() => ws.emit('open'));
   return ws;
 };
 const outputFile = writeFile;
 const outputFileSync = writeFileSync;
+
+export {
+  pathExists,
+  pathExistsSync,
+  stat,
+  statSync,
+  readdir,
+  readdirSync,
+  mkdirp,
+  mkdirpSync,
+  ensureDir,
+  ensureDirSync,
+  ensureFile,
+  ensureFileSync,
+  remove,
+  removeSync,
+  unlink,
+  unlinkSync,
+  readFile,
+  readFileSync,
+  writeFile,
+  writeFileSync,
+  outputFile,
+  outputFileSync,
+  copyFile,
+  copyFileSync,
+  copy,
+  copySync,
+  move,
+  moveSync,
+  createReadStream,
+  createWriteStream,
+};
 
 const fsShim = {
   pathExists,
@@ -206,4 +240,9 @@ const fsShim = {
   },
 };
 
-module.exports = fsShim;
+const lstat = stat;
+const lstatSync = statSync;
+const promises = fsShim.promises;
+
+export { lstat, lstatSync, promises };
+export default fsShim;

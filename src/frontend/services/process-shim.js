@@ -2,7 +2,7 @@
 // Tauri's webview has no Node.js integration, so the real `process` global is
 // undefined. If a real `process` is ever present, prefer it so behavior stays
 // identical.
-// CommonJS on purpose (see os-shim.js).
+// ESM (not CJS): `vite dev` serves source files as native ESM (see path-shim.js).
 
 const realProcess = (globalThis && globalThis.process) || undefined;
 
@@ -40,4 +40,5 @@ const processShim = {
   },
 };
 
-module.exports = processShim;
+export const { platform, arch, version, type, env, cwd, on, nextTick } = processShim;
+export default processShim;

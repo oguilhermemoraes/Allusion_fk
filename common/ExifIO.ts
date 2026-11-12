@@ -11,6 +11,7 @@
  * - ExifTool can read all files in a directory recursively.
  */
 
+import { invoke } from '@tauri-apps/api/core';
 import { NativeExifData, nativeToDimensions, nativeToExifTags } from './exif-native';
 
 class ExifIO {
@@ -27,8 +28,6 @@ class ExifIO {
 
   /** Reads native EXIF metadata via the Tauri Rust command. */
   private async readNativeExif(filepath: string): Promise<NativeExifData | null> {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { invoke } = require('@tauri-apps/api/core');
     try {
       const data = (await invoke('read_exif_metadata', { path: filepath })) as NativeExifData;
       return data;
@@ -50,8 +49,6 @@ class ExifIO {
    */
   async getDimensions(filepath: string): Promise<{ width: number; height: number }> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { invoke } = require('@tauri-apps/api/core');
       const dims = (await invoke('get_image_dimensions', {
         path: filepath,
       })) as [number, number];

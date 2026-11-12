@@ -26,3 +26,6 @@ src-tauri/target/
 # Scratch / personal notes
 context_doc/
 build_error.log
+
+# CT Shader: repositório próprio (github.com/oguilhermemoraes/ct-shader), base do editor nativo
+ct-shader/

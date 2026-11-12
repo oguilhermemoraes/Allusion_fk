@@ -1,7 +1,6 @@
-// Needed for test:
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const path = require('path');
+import path from 'path';
 import fse from 'fs-extra';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { thumbnailFormat } from '../common/config';
 import { IS_DEV } from './process';
 import { isTauri } from './tauri';
@@ -25,8 +24,6 @@ export function encodeFilePath(filePath: string): string {
     const paramsIndex = filePath.lastIndexOf('?');
     const params = paramsIndex > 0 ? filePath.slice(paramsIndex) : '';
     const cleanPath = paramsIndex > 0 ? filePath.slice(0, paramsIndex) : filePath;
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { convertFileSrc } = require('@tauri-apps/api/core');
     return convertFileSrc(cleanPath) + params;
   }
   // Take into account weird file names like "C:/Images/https_%2F%2Fcdn/.../my-image.jpg"
@@ -77,5 +74,7 @@ function hashString(s: string) {
  */
 export function getExtraResourcePath(resourcePath: string): string {
   const relativeResourcesPath = (IS_DEV ? '../' : '../../') + 'resources';
-  return path.resolve(__dirname, relativeResourcesPath, resourcePath);
+  // No `__dirname` in the Vite dev server / WebView (webpack polyfilled it).
+  const base = typeof __dirname !== 'undefined' ? __dirname : '/';
+  return path.resolve(base, relativeResourcesPath, resourcePath);
 }

@@ -2,9 +2,9 @@
 // Provides Stream/Readable/Writable/Duplex/Transform on top of the `events`
 // package. Good enough for module-eval and the shimmed no-op paths; real
 // streaming I/O is handled by Rust commands in Tauri.
-// CommonJS on purpose (see os-shim.js).
+// ESM (not CJS): `vite dev` serves source files as native ESM (see path-shim.js).
 
-const EventEmitter = require('events');
+import EventEmitter from 'events';
 
 class Stream extends EventEmitter {
   pipe(dest) {
@@ -138,9 +138,5 @@ class Transform extends Duplex {
   }
 }
 
-module.exports = Stream;
-module.exports.Stream = Stream;
-module.exports.Readable = Readable;
-module.exports.Writable = Writable;
-module.exports.Duplex = Duplex;
-module.exports.Transform = Transform;
+export { Stream, Readable, Writable, Duplex, Transform };
+export default Stream;

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { runInAction } from 'mobx';
 
 import { ITransform, Layouter, MasonryLayoutType, MasonryOptions } from './layout-helpers';
 
@@ -43,9 +44,12 @@ export class MasonryNativeAdapter implements Layouter {
     containerWidth: number,
     opts: Partial<MasonryOptions>,
   ): Promise<number | undefined> {
-    this.dimensions = imgs
-      .slice(0, numImgs)
-      .map((img) => ({ width: img.width, height: img.height }));
+    // Bulk-reading observable dimensions outside a reactive context (this is
+    // called from React `useEffect`) makes MobX (`observableRequiresReaction`)
+    // emit one warning PER FILE — the console flood on directory add (#79).
+    this.dimensions = runInAction(() =>
+      imgs.slice(0, numImgs).map((img) => ({ width: img.width, height: img.height })),
+    );
     return this.computeLayout(containerWidth, opts);
   }
 

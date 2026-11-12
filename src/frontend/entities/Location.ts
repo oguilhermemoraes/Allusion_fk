@@ -8,6 +8,7 @@ import { IMG_EXTENSIONS_TYPE } from '../../api/file';
 import { ID } from '../../api/id';
 import { LocationDTO, SubLocationDTO } from '../../api/location';
 import { RendererMessenger } from '../../ipc/renderer';
+import { tauriFolderWatcher } from '../services/TauriFolderWatcher';
 import { AppToaster } from '../components/Toaster';
 import LocationStore, { FileStats } from '../stores/LocationStore';
 
@@ -224,8 +225,6 @@ export class ClientLocation {
 
   /** Cleanup resources */
   async drop(): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { tauriFolderWatcher } = require('../services/TauriFolderWatcher');
     return tauriFolderWatcher.stopWatching(this.path);
   }
 
@@ -269,8 +268,6 @@ export class ClientLocation {
   }
 
   private async watch(directory: string): Promise<FileStats[]> {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { tauriFolderWatcher } = require('../services/TauriFolderWatcher');
     tauriFolderWatcher.startWatching(directory, async (event: any) => {
       if (event.kind === 'remove') {
         console.log(`Location "${this.name}": File ${event.path} has been removed.`);

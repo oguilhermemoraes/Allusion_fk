@@ -13,13 +13,26 @@ function acquire(): Promise<void> {
     inFlight += 1;
     return Promise.resolve();
   }
-  return new Promise((resolve) => waiters.push(resolve));
+  // Hand the slot straight over to the next waiter: it re-takes ownership, so
+  // `inFlight` must not be decremented again for it. Without this the counter
+  // drifted negative, the `inFlight < MAX_CONCURRENT` guard below stopped
+  // holding, and fresh requests bypassed the queue entirely — flooding Rust
+  // with unbounded concurrent decodes (RAM exhaustion, frozen machine,
+  // ~0.15 thumbnails/s).
+  return new Promise((resolve) => {
+    waiters.push(() => {
+      resolve();
+    });
+  });
 }
+
 function release(): void {
-  inFlight -= 1;
   const next = waiters.shift();
   if (next) {
+    // Slot ownership passes directly to the waiter: `inFlight` stays as-is.
     next();
+  } else {
+    inFlight -= 1;
   }
 }
 

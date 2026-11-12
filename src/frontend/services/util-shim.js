@@ -1,6 +1,6 @@
 // Minimal browser/WebView-safe replacement for the Node.js `util` module.
 // Implements the members used by bundled dependencies (yauzl, wrote, etc.).
-// CommonJS on purpose (see os-shim.js).
+// ESM (not CJS): `vite dev` serves source files as native ESM (see path-shim.js).
 
 function inherits(ctor, superCtor) {
   if (typeof ctor !== 'function' || typeof superCtor !== 'function') {
@@ -120,7 +120,7 @@ const types = {
   isWeakSet: (v) => v instanceof WeakSet,
 };
 
-module.exports = {
+export {
   inherits,
   promisify,
   format,
@@ -134,9 +134,35 @@ module.exports = {
   isObject,
   isNullOrUndefined,
   isBuffer,
-  isUndefined: (v) => v === undefined,
-  isRegExp: (v) => v instanceof RegExp,
-  isDate: (v) => v instanceof Date,
-  isPrimitive: (v) => v === null || (typeof v !== 'object' && typeof v !== 'function'),
   types,
 };
+
+const isUndefined = (v) => v === undefined;
+const isRegExp = (v) => v instanceof RegExp;
+const isDate = (v) => v instanceof Date;
+const isPrimitive = (v) => v === null || (typeof v !== 'object' && typeof v !== 'function');
+
+export { isUndefined, isRegExp, isDate, isPrimitive };
+
+const utilShim = {
+  inherits,
+  promisify,
+  format,
+  inspect,
+  deprecate,
+  callbackify,
+  isArray,
+  isString,
+  isNumber,
+  isFunction,
+  isObject,
+  isNullOrUndefined,
+  isBuffer,
+  isUndefined,
+  isRegExp,
+  isDate,
+  isPrimitive,
+  types,
+};
+
+export default utilShim;

@@ -1,4 +1,4 @@
-import { action } from 'mobx';
+import { action, runInAction } from 'mobx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '../../contexts/StoreContext';
 import { ClientFile } from '../../entities/File';
@@ -8,6 +8,38 @@ export interface MarqueeBox {
   top: number;
   width: number;
   height: number;
+}
+
+/** Test/external selector: clicking these never starts a marquee selection. */
+const NON_MARQUEE_SELECTOR =
+  '[data-masonrycell], [role="row"], button, input, textarea, a, .popover, .menu, .dialog';
+
+/**
+ * Decides whether a pointer-down may start a marquee (box select).
+ *
+ * Reads observable UI state (`isSlideMode`, `fileSelection`) on purpose, so it
+ * runs inside `runInAction`: React event handlers are NOT reactive contexts and
+ * MobX (`observableRequiresReaction`) would warn on every mouse event, flooding
+ * the console and tanking frame time while dragging (#79).
+ */
+export function shouldStartMarquee(
+  uiStore: {
+    isSlideMode: boolean;
+    fileSelection: Set<unknown>;
+  },
+  event: { button: number; target: EventTarget | null },
+): boolean {
+  return runInAction(() => {
+    if (uiStore.isSlideMode || event.button !== 0) {
+      return false;
+    }
+    return !(event.target as HTMLElement | null)?.closest(NON_MARQUEE_SELECTOR);
+  });
+}
+
+/** Snapshots the current selection so ctrl/shift can toggle relative to it. */
+export function snapshotSelection(fileSelection: Set<ClientFile>): Set<ClientFile> {
+  return runInAction(() => new Set(fileSelection));
 }
 
 export function computeMarqueeBox(
@@ -97,20 +129,14 @@ export function useBoxSelect(containerRef: React.RefObject<HTMLDivElement>) {
     null,
   );
   const initialSelectionRef = useRef<Set<ClientFile>>(new Set());
+  // Read in render (a reactive context) so the mouse handler never touches an
+  // observable directly: React handlers are not reactive, and MobX warns once
+  // per event otherwise (#79).
+  const { isSlideMode, fileSelection } = uiStore;
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (uiStore.isSlideMode || e.button !== 0) {
-        return;
-      }
-
-      // If clicked on an actual item/cell or interactive control, do not start marquee
-      const target = e.target as HTMLElement | null;
-      if (
-        target?.closest(
-          '[data-masonrycell], [role="row"], button, input, textarea, a, .popover, .menu, .dialog',
-        )
-      ) {
+      if (!shouldStartMarquee({ isSlideMode, fileSelection }, e)) {
         return;
       }
 
@@ -129,10 +155,10 @@ export function useBoxSelect(containerRef: React.RefObject<HTMLDivElement>) {
         clientX: e.clientX,
         clientY: e.clientY,
       };
-      initialSelectionRef.current = new Set(uiStore.fileSelection);
+      initialSelectionRef.current = snapshotSelection(fileSelection);
       isDraggingRef.current = false;
     },
-    [uiStore, containerRef],
+    [isSlideMode, containerRef, fileSelection],
   );
 
   useEffect(() => {

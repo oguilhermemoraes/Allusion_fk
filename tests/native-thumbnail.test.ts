@@ -60,6 +60,44 @@ describe('generateNativeThumbnail', () => {
     const result = await generateNativeThumbnail('C:/img/b.jpg', 'C:/thumbs/b-1.webp', 600);
     expect(result).toBe(nativeResult);
   });
+
+  test('keeps the cap for requests that arrive after previous handoffs', async () => {
+    // Regression: `release()` decremented `inFlight` but the waiter it woke
+    // never incremented it, so the counter drifted NEGATIVE. Once negative,
+    // `acquire()`'s `inFlight < MAX_CONCURRENT` check let every new request
+    // bypass the queue: the grid flooded Rust with unbounded concurrent
+    // full-size decodes -> RAM exhaustion, machine freeze, throughput ~0.15/s.
+    mockedIsTauri.mockReturnValue(true);
+
+    let concurrent = 0;
+    let peak = 0;
+    mockedInvoke.mockImplementation(async () => {
+      concurrent += 1;
+      peak = Math.max(peak, concurrent);
+      await new Promise((r) => setTimeout(r, 1));
+      concurrent -= 1;
+      return { generated: true, palette: [] };
+    });
+
+    // Phase 1: more requests than the limit, so waiter handoffs occur and the
+    // counter drifts. All of these complete.
+    await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        generateNativeThumbnail(`C:/img/warm${i}.jpg`, `C:/thumbs/warm${i}.webp`, 600),
+      ),
+    );
+
+    // Phase 2: a fresh burst arrives AFTER the drift happened. With a broken
+    // counter these are all admitted at once and peak explodes.
+    peak = 0;
+    await Promise.all(
+      Array.from({ length: 24 }, (_, i) =>
+        generateNativeThumbnail(`C:/img/after${i}.jpg`, `C:/thumbs/after${i}.webp`, 600),
+      ),
+    );
+
+    expect(peak).toBeLessThanOrEqual(4);
+  });
 });
 
 describe('extractNativePalette', () => {

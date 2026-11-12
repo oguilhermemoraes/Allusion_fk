@@ -1,7 +1,10 @@
+import { configure, observable, runInAction } from 'mobx';
 import {
   computeMarqueeBox,
   computeIntersectedFiles,
   applyBoxSelection,
+  shouldStartMarquee,
+  snapshotSelection,
 } from '../src/frontend/containers/ContentView/useBoxSelect';
 import { ClientFile } from '../src/frontend/entities/File';
 
@@ -132,6 +135,78 @@ describe('Box Selection logic', () => {
         target,
       );
       expect(target.replace).toHaveBeenCalledWith([fileB]);
+    });
+  });
+
+  describe('shouldStartMarquee', () => {
+    function makeTarget(closestResult: string | null): HTMLElement {
+      return { closest: () => closestResult } as unknown as HTMLElement;
+    }
+
+    test('starts on empty background with primary button', () => {
+      expect(
+        shouldStartMarquee(
+          { isSlideMode: false, fileSelection: new Set() },
+          { button: 0, target: makeTarget(null) },
+        ),
+      ).toBe(true);
+    });
+
+    test('does not start in slide mode', () => {
+      expect(
+        shouldStartMarquee(
+          { isSlideMode: true, fileSelection: new Set() },
+          { button: 0, target: makeTarget(null) },
+        ),
+      ).toBe(false);
+    });
+
+    test('does not start on non-primary button', () => {
+      expect(
+        shouldStartMarquee(
+          { isSlideMode: false, fileSelection: new Set() },
+          { button: 2, target: makeTarget(null) },
+        ),
+      ).toBe(false);
+    });
+
+    test('does not start on a cell or interactive control', () => {
+      expect(
+        shouldStartMarquee(
+          { isSlideMode: false, fileSelection: new Set() },
+          { button: 0, target: makeTarget('[data-masonrycell]') },
+        ),
+      ).toBe(false);
+    });
+
+    test('reads observable UI state without MobX outside-reaction warnings', () => {
+      configure({ observableRequiresReaction: true });
+      try {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+          const uiStore = observable({
+            isSlideMode: false,
+            fileSelection: observable(new Set<unknown>()),
+          });
+          const event = { button: 0, target: makeTarget(null) };
+          shouldStartMarquee(
+            runInAction(() => uiStore),
+            event,
+          );
+          runInAction(() =>
+            snapshotSelection(uiStore.fileSelection as unknown as Set<ClientFile>),
+          );
+
+          const mobxWarnings = warnSpy.mock.calls.filter((args) =>
+            String(args[0]).includes('reactive context'),
+          );
+          expect(mobxWarnings).toHaveLength(0);
+        } finally {
+          warnSpy.mockRestore();
+        }
+      } finally {
+        configure({ observableRequiresReaction: false });
+      }
     });
   });
 });
