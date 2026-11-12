@@ -38,3 +38,13 @@ custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
 tempfile = "3"
+
+# `tauri dev` builds the backend unoptimized, and the thumbnail pipeline is
+# pure pixel work inside the `image` crate (decode -> resize -> webp encode ->
+# palette). Measured with the same test suite: 6.15s in release vs 175.31s in
+# dev, i.e. ~28x slower, which capped thumbnail generation at ~0.15/s and made
+# a 1.1k-image library take over an hour. Optimizing dependencies keeps the app
+# crate itself in debug (fast rebuilds, backtraces, devtools) while restoring
+# real throughput for the native image code.
+[profile.dev.package."*"]
+opt-level = 3
