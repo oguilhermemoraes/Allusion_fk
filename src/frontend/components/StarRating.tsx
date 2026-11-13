@@ -1,4 +1,3 @@
-import { observer } from 'mobx-react-lite';
 import React, { useCallback } from 'react';
 import { IconSet } from 'widgets';
 
@@ -11,85 +10,83 @@ export interface StarRatingProps {
   className?: string;
 }
 
-export const StarRating: React.FC<StarRatingProps> = observer(
-  ({
-    rating = 0,
-    onChange,
-    readonly = false,
-    size = 'medium',
-    showClear = true,
-    className = '',
-  }) => {
-    const handleClick = useCallback(
-      (starIndex: number, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (readonly || !onChange) {
-          return;
-        }
-        if (rating === starIndex) {
-          onChange(0);
-        } else {
-          onChange(starIndex);
-        }
-      },
-      [onChange, rating, readonly],
-    );
-
-    const handleClear = useCallback(
-      (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (readonly || !onChange) {
-          return;
-        }
+export const StarRating: React.FC<StarRatingProps> = ({
+  rating = 0,
+  onChange,
+  readonly = false,
+  size = 'medium',
+  showClear = true,
+  className = '',
+}) => {
+  const handleClick = useCallback(
+    (starIndex: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (readonly || !onChange) {
+        return;
+      }
+      if (rating === starIndex) {
         onChange(0);
-      },
-      [onChange, readonly],
-    );
+      } else {
+        onChange(starIndex);
+      }
+    },
+    [onChange, rating, readonly],
+  );
 
-    const sizeClass =
-      size === 'small' ? 'star-rating-sm' : size === 'large' ? 'star-rating-lg' : 'star-rating-md';
+  const handleClear = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (readonly || !onChange) {
+        return;
+      }
+      onChange(0);
+    },
+    [onChange, readonly],
+  );
 
-    return (
-      <div
-        className={`star-rating-container ${sizeClass} ${
-          readonly ? 'star-rating-readonly' : ''
-        } ${className}`}
-        role="group"
-        aria-label={`Rating: ${rating} of 5 stars`}
-      >
-        {[1, 2, 3, 4, 5].map((starIndex) => {
-          const isFilled = starIndex <= rating;
-          return (
-            <button
-              key={starIndex}
-              type="button"
-              className={`star-rating-btn ${isFilled ? 'star-filled' : 'star-empty'}`}
-              onClick={(e) => handleClick(starIndex, e)}
-              disabled={readonly}
-              title={
-                readonly ? `${rating} stars` : `Rate ${starIndex} star${starIndex > 1 ? 's' : ''}`
-              }
-              aria-label={`${starIndex} star${starIndex > 1 ? 's' : ''}`}
-            >
-              {isFilled ? IconSet.STAR_FILL : IconSet.STAR_OUTLINE}
-            </button>
-          );
-        })}
+  const sizeClass =
+    size === 'small' ? 'star-rating-sm' : size === 'large' ? 'star-rating-lg' : 'star-rating-md';
 
-        {!readonly && showClear && rating > 0 && (
+  return (
+    <div
+      className={`star-rating-container ${sizeClass} ${
+        readonly ? 'star-rating-readonly' : ''
+      } ${className}`}
+      role="group"
+      aria-label={`Rating: ${rating} of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map((starIndex) => {
+        const isFilled = starIndex <= rating;
+        return (
           <button
+            key={starIndex}
             type="button"
-            className="star-rating-clear-btn btn-icon"
-            onClick={handleClear}
-            title="Clear rating"
-            aria-label="Clear rating"
+            className={`star-rating-btn ${isFilled ? 'star-filled' : 'star-empty'}`}
+            onClick={(e) => handleClick(starIndex, e)}
+            disabled={readonly}
+            title={
+              readonly ? `${rating} stars` : `Rate ${starIndex} star${starIndex > 1 ? 's' : ''}`
+            }
+            aria-label={`${starIndex} star${starIndex > 1 ? 's' : ''}`}
           >
-            {IconSet.CLOSE}
+            {isFilled ? IconSet.STAR_FILL : IconSet.STAR_OUTLINE}
           </button>
-        )}
-      </div>
-    );
-  },
-);
+        );
+      })}
+
+      {!readonly && showClear && rating > 0 && (
+        <button
+          type="button"
+          className="star-rating-clear-btn btn-icon"
+          onClick={handleClear}
+          title="Clear rating"
+          aria-label="Clear rating"
+        >
+          {IconSet.CLOSE}
+        </button>
+      )}
+    </div>
+  );
+};
 
 export default StarRating;

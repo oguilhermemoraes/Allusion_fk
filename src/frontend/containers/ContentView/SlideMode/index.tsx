@@ -27,7 +27,7 @@ import { Vec2, createDimension, createTransform } from './utils';
 const PRELOADED_SOURCE_LIMIT = 12;
 const preloadedSources = new Map<string, { src: string; dimension: Vec2 }>();
 
-function rememberPreloadedSource(id: string, src: string, dimension: Vec2): void {
+export function rememberPreloadedSource(id: string, src: string, dimension: Vec2): void {
   preloadedSources.delete(id);
   preloadedSources.set(id, { src, dimension });
   while (preloadedSources.size > PRELOADED_SOURCE_LIMIT) {
@@ -39,7 +39,7 @@ function rememberPreloadedSource(id: string, src: string, dimension: Vec2): void
   }
 }
 
-function takePreloadedSource(id: string): { src: string; dimension: Vec2 } | undefined {
+export function takePreloadedSource(id: string): { src: string; dimension: Vec2 } | undefined {
   const entry = preloadedSources.get(id);
   if (entry !== undefined) {
     preloadedSources.delete(id);
@@ -47,7 +47,8 @@ function takePreloadedSource(id: string): { src: string; dimension: Vec2 } | und
   return entry;
 }
 
-const SlideMode = observer(({ contentRect }: { contentRect: ContentRect }) => {  const { uiStore } = useStore();
+const SlideMode = observer(({ contentRect }: { contentRect: ContentRect }) => {
+  const { uiStore } = useStore();
   const isInspectorOpen = uiStore.isInspectorOpen;
   const inspectorWidth = uiStore.inspectorWidth;
   const contentWidth = contentRect.width - (isInspectorOpen ? inspectorWidth : 0);
@@ -130,18 +131,17 @@ const SlideView = observer(({ width, height }: { width: number; height: number }
         if (!isEffectRunning || !src || src !== file.absolutePath) {
           return;
         }
-        const encoded = encodeFilePath(src);
         const img = new Image();
         img.onload = () => {
           if (isEffectRunning) {
             rememberPreloadedSource(
               file.id,
-              encoded,
+              src,
               createDimension(img.naturalWidth, img.naturalHeight),
             );
           }
         };
-        img.src = encoded;
+        img.src = encodeFilePath(src);
       });
     };
     const dispose = autorun(() => {
@@ -249,106 +249,108 @@ interface ZoomableImageProps {
   upscaleMode: UpscaleMode;
 }
 
-const ZoomableImage: React.FC<ZoomableImageProps> = ({
-  file,
-  thumbnailSrc,
-  width,
-  height,
-  transitionStart,
-  transitionEnd,
-  onClose,
-  upscaleMode,
-}: ZoomableImageProps) => {
-  const { imageLoader } = useStore();
-  const { absolutePath, width: imgWidth, height: imgHeight } = file;
-  // Image src can be set asynchronously: keep track of it in a state
-  // Needed for image formats not natively supported by the browser (e.g. tiff): will be converted to another format
-  const source = usePromise(file, thumbnailSrc, async (file, thumbnailPath) => {
-    const src = await imageLoader.getImageSrc(file);
-    return src ?? thumbnailPath;
-  });
-
-  const image = usePromise(
-    source,
-    absolutePath,
+const ZoomableImage: React.FC<ZoomableImageProps> = observer(
+  ({
+    file,
     thumbnailSrc,
-    imgWidth,
-    imgHeight,
-    async (source, absolutePath, thumbnailSrc, imgWidth, imgHeight) => {
-      // A preloaded full-resolution source is ready: mount sharp immediately
-      // instead of flashing the upscaled grid thumbnail first.
-      const preloaded = takePreloadedSource(file.id);
-      if (preloaded !== undefined) {
-        return preloaded;
-      }
-      if (source.tag === 'ready') {
-        if ('ok' in source.value) {
-          const src = source.value.ok;
-          const dimension = await new Promise<{ src: string; dimension: Vec2 }>(
-            (resolve, reject) => {
-              const img = new Image();
-              img.onload = function (this: any) {
-                // TODO: would be better to resolve once transition is complete: for large resolution images, the transition freezes for ~.4s bc of a re-paint task when the image changes
-                resolve({
-                  src,
-                  dimension: createDimension(this.naturalWidth, this.naturalHeight),
-                });
-              };
-              img.onerror = reject;
-              img.src = encodeFilePath(src);
-            },
-          );
-          return dimension;
-        } else {
-          throw source.value.err;
-        }
-      } else {
-        return {
-          src: thumbnailSrc || absolutePath,
-          dimension: createDimension(imgWidth, imgHeight),
-        };
-      }
-    },
-  );
+    width,
+    height,
+    transitionStart,
+    transitionEnd,
+    onClose,
+    upscaleMode,
+  }: ZoomableImageProps) => {
+    const { imageLoader } = useStore();
+    const { absolutePath, width: imgWidth, height: imgHeight } = file;
+    // Image src can be set asynchronously: keep track of it in a state
+    // Needed for image formats not natively supported by the browser (e.g. tiff): will be converted to another format
+    const source = usePromise(file, thumbnailSrc, async (file, thumbnailPath) => {
+      const src = await imageLoader.getImageSrc(file);
+      return src ?? thumbnailPath;
+    });
 
-  if (image.tag === 'ready' && 'err' in image.value) {
-    return <ImageFallback error={image.value.err} absolutePath={absolutePath} />;
-  } else {
-    const { src, dimension } =
-      image.tag === 'ready' && 'ok' in image.value
-        ? image.value.ok
-        : {
+    const image = usePromise(
+      source,
+      absolutePath,
+      thumbnailSrc,
+      imgWidth,
+      imgHeight,
+      async (source, absolutePath, thumbnailSrc, imgWidth, imgHeight) => {
+        // A preloaded full-resolution source is ready: mount sharp immediately
+        // instead of flashing the upscaled grid thumbnail first.
+        const preloaded = takePreloadedSource(file.id);
+        if (preloaded !== undefined) {
+          return preloaded;
+        }
+        if (source.tag === 'ready') {
+          if ('ok' in source.value) {
+            const src = source.value.ok;
+            const dimension = await new Promise<{ src: string; dimension: Vec2 }>(
+              (resolve, reject) => {
+                const img = new Image();
+                img.onload = function (this: any) {
+                  // TODO: would be better to resolve once transition is complete: for large resolution images, the transition freezes for ~.4s bc of a re-paint task when the image changes
+                  resolve({
+                    src,
+                    dimension: createDimension(this.naturalWidth, this.naturalHeight),
+                  });
+                };
+                img.onerror = reject;
+                img.src = encodeFilePath(src);
+              },
+            );
+            return dimension;
+          } else {
+            throw source.value.err;
+          }
+        } else {
+          return {
             src: thumbnailSrc || absolutePath,
             dimension: createDimension(imgWidth, imgHeight),
           };
-    const minScale = Math.min(0.1, Math.min(width / dimension[0], height / dimension[1]));
-    return (
-      <ZoomPan
-        position="center"
-        initialScale="auto"
-        doubleTapBehavior="zoomOrReset"
-        imageDimension={dimension}
-        containerDimension={createDimension(width, height)}
-        minScale={minScale}
-        maxScale={5}
-        transitionStart={transitionStart}
-        transitionEnd={transitionEnd}
-        onClose={onClose}
-        upscaleMode={upscaleMode}
-      >
-        {(props) => (
-          <img
-            {...props}
-            src={encodeFilePath(src)}
-            width={dimension[0]}
-            height={dimension[1]}
-            alt=""
-          />
-        )}
-      </ZoomPan>
+        }
+      },
     );
-  }
-};
+
+    if (image.tag === 'ready' && 'err' in image.value) {
+      return <ImageFallback error={image.value.err} absolutePath={absolutePath} />;
+    } else {
+      const { src, dimension } =
+        image.tag === 'ready' && 'ok' in image.value
+          ? image.value.ok
+          : {
+              src: thumbnailSrc || absolutePath,
+              dimension: createDimension(imgWidth, imgHeight),
+            };
+      const minScale = Math.min(0.1, Math.min(width / dimension[0], height / dimension[1]));
+      return (
+        <ZoomPan
+          position="center"
+          initialScale="auto"
+          doubleTapBehavior="zoomOrReset"
+          imageDimension={dimension}
+          containerDimension={createDimension(width, height)}
+          minScale={minScale}
+          maxScale={5}
+          transitionStart={transitionStart}
+          transitionEnd={transitionEnd}
+          onClose={onClose}
+          upscaleMode={upscaleMode}
+        >
+          {(props) => (
+            <img
+              {...props}
+              src={encodeFilePath(src)}
+              width={dimension[0]}
+              height={dimension[1]}
+              alt=""
+            />
+          )}
+        </ZoomPan>
+      );
+    }
+  },
+);
 
 export default SlideMode;
 

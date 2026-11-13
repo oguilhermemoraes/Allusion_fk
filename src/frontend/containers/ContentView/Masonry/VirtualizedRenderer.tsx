@@ -24,6 +24,24 @@ interface IRendererProps {
 }
 
 /**
+ * Attaches a ResizeObserver to `viewport` so the visible render window is
+ * recalculated on initial layout settle and whenever the viewport resizes.
+ */
+export function observeViewportResize(
+  viewport: Element | null,
+  onResize: () => void,
+): (() => void) | undefined {
+  if (!viewport || typeof ResizeObserver === 'undefined') {
+    return undefined;
+  }
+  const observer = new ResizeObserver(() => {
+    onResize();
+  });
+  observer.observe(viewport);
+  return () => observer.disconnect();
+}
+
+/**
  * This is the virtualized renderer: it only renders the items in the viewport.
  * It renders a scrollable viewport and a content element within it.
  */
@@ -39,7 +57,7 @@ const VirtualizedRenderer = observer(
     layoutUpdateDate,
     padding,
   }: IRendererProps) => {
-    const { uiStore, fileStore } = useStore();
+    const { uiStore } = useStore();
     const [, isMountedRef] = useMountState();
     const wrapperRef = useRef<HTMLDivElement>(null);
     const scrollAnchor = useRef<HTMLDivElement>(null);
@@ -47,6 +65,12 @@ const VirtualizedRenderer = observer(
     const [endRenderIndex, setEndRenderIndex] = useState(0);
     const numImages = images.length;
     const { isSlideMode, firstItem } = uiStore;
+    const numImagesRef = useRef(numImages);
+    numImagesRef.current = numImages;
+    const overscanRef = useRef(overscan);
+    overscanRef.current = overscan;
+    const layoutRef = useRef(layout);
+    layoutRef.current = layout;
 
     const determineRenderRegion = useCallback(
       (numImages: number, overdraw: number, setFirstItem = true) => {
@@ -57,13 +81,13 @@ const VirtualizedRenderer = observer(
         const yOffset = viewport?.scrollTop || 0;
         const viewportHeight = viewport?.clientHeight || 0;
 
-        const firstImageIndex = findViewportEdge(yOffset, numImages, layout);
+        const firstImageIndex = findViewportEdge(yOffset, numImages, layoutRef.current);
         const { start, end } = computeRenderRegion(
           yOffset,
           viewportHeight,
           overdraw,
           numImages,
-          layout,
+          layoutRef.current,
         );
 
         // React bails out of the re-render when the value is unchanged, so calling
@@ -112,6 +136,14 @@ const VirtualizedRenderer = observer(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [numImages, containerWidth, containerHeight]);
 
+    // Recompute visible region whenever the scrollable viewport itself mounts/resizes
+    // (e.g. transitioning from 0x0 on initial mount or resizing the window vertically)
+    useLayoutEffect(() => {
+      return observeViewportResize(wrapperRef.current, () => {
+        determineRenderRegion(numImagesRef.current, overscanRef.current, false);
+      });
+    }, [determineRenderRegion]);
+
     const handleScroll = useCallback(() => scheduleRenderRegion(), [scheduleRenderRegion]);
 
     const scrollToIndex = useCallback(
@@ -148,6 +180,7 @@ const VirtualizedRenderer = observer(
       runInAction(() => {
         scrollToIndex(uiStore.firstItem, 'start'); // keep the first item in view aligned at the start
       });
+      determineRenderRegion(numImagesRef.current, overscanRef.current, false);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [layoutUpdateDate]);
 
@@ -181,7 +214,7 @@ const VirtualizedRenderer = observer(
             return (
               <MasonryCell
                 key={im.id}
-                file={fileStore.fileList[fileListIndex]}
+                file={im}
                 mounted
                 transform={transform}
                 // Force to load the full resolution image when the img dimensions on screen are larger than the thumbnail image resolution

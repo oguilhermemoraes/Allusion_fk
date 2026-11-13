@@ -92,12 +92,64 @@ export const MasonryCell = observer(
   },
 );
 
+// Keyed by ClientFile identity so reused instances across folder switches keep their
+// resolved thumbnail URL and loaded state without flashing placeholders or reloading <img>.
+const resolvedThumbnailSrcCache = new WeakMap<
+  ClientFile,
+  { useThumbnail: boolean; thumbnailPath: string; src: string }
+>();
+const loadedFileSrcCache = new WeakMap<ClientFile, string>();
+
+export function getCachedThumbnailSrc(
+  file: ClientFile,
+  useThumbnail: boolean,
+  thumbnailPath: string,
+  mounted: boolean,
+  isBroken?: boolean,
+): string | undefined {
+  if (!mounted || isBroken === true) {
+    return undefined;
+  }
+  const cached = resolvedThumbnailSrcCache.get(file);
+  if (
+    cached !== undefined &&
+    cached.useThumbnail === useThumbnail &&
+    cached.thumbnailPath === thumbnailPath
+  ) {
+    return cached.src;
+  }
+  return undefined;
+}
+
+export function setCachedThumbnailSrc(
+  file: ClientFile,
+  useThumbnail: boolean,
+  thumbnailPath: string,
+  src: string,
+): void {
+  resolvedThumbnailSrcCache.set(file, { useThumbnail, thumbnailPath, src });
+}
+
+export function hasLoadedThumbnailSrc(file: ClientFile, encodedSrc: string): boolean {
+  return loadedFileSrcCache.get(file) === encodedSrc;
+}
+
+export function markThumbnailSrcLoaded(file: ClientFile, encodedSrc: string): void {
+  loadedFileSrcCache.set(file, encodedSrc);
+}
+
+export function clearThumbnailCachesForFile(file: ClientFile): void {
+  resolvedThumbnailSrcCache.delete(file);
+  loadedFileSrcCache.delete(file);
+}
+
 // TODO: When a filename contains https://x/y/z.abc?323 etc., it can't be found
 // e.g. %2F should be %252F on filesystems. Something to do with decodeURI, but seems like only on the filename - not the whole path
 export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProps) => {
   const { uiStore, imageLoader } = useStore();
   const { thumbnailPath, isBroken } = file;
   const isVideo = isVideoExtension(file.extension);
+  const useThumbnail = uiStore.isList || !forceNoThumbnail;
 
   // This will check whether a thumbnail exists, generate it if needed
   const imageSource = usePromise(
@@ -105,7 +157,7 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
     isBroken,
     mounted,
     thumbnailPath,
-    uiStore.isList || !forceNoThumbnail,
+    useThumbnail,
     async (file, isBroken, mounted, thumbnailPath, useThumbnail) => {
       // If it is broken, only show thumbnail if it exists.
       if (!mounted || isBroken === true) {
@@ -126,10 +178,13 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
             throw new Error('Thumbnail generation timeout.');
           }
         }
-        return getThumbnail(file);
+        const resolved = getThumbnail(file);
+        setCachedThumbnailSrc(file, useThumbnail, resolved, resolved);
+        return resolved;
       } else {
         const src = await imageLoader.getImageSrc(file);
         if (src !== undefined) {
+          setCachedThumbnailSrc(file, useThumbnail, thumbnailPath, src);
           return src;
         } else {
           throw new Error('No thumbnail available.');
@@ -147,63 +202,77 @@ export const Thumbnail = observer(({ file, mounted, forceNoThumbnail }: ItemProp
 
   const handleImageError = useCallback(() => {
     if (fileIdRef.current === fileId) {
+      clearThumbnailCachesForFile(file);
       setLoadError(true);
+    }
+  }, [file, fileId]);
+
+  useEffect(() => {
+    if (fileIdRef.current !== fileId) {
+      fileIdRef.current = fileId;
+      setLoadError(false);
+      setImgLoaded(false);
     }
   }, [fileId]);
 
-  useEffect(() => {
-    fileIdRef.current = fileId;
-    setLoadError(false);
-    setImgLoaded(false);
-  }, [fileId]);
+  const cachedSrc = getCachedThumbnailSrc(file, useThumbnail, thumbnailPath, mounted, isBroken);
+
+  const readySrc =
+    imageSource.tag === 'ready' && 'ok' in imageSource.value
+      ? imageSource.value.ok
+      : imageSource.tag === 'pending'
+      ? cachedSrc
+      : undefined;
 
   if (!mounted) {
     return <span className="image-placeholder" />;
   } else if (loadError) {
     return <span className="image-loading" />;
+  } else if (readySrc !== undefined) {
+    const is_lowres = file.width < 320 || file.height < 320;
+    const src = encodeFilePath(readySrc);
+    const isImgLoaded = imgLoaded || hasLoadedThumbnailSrc(file, src);
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+        {!isImgLoaded && (
+          <span className="image-loading" style={{ position: 'absolute', inset: 0 }} />
+        )}
+        <img
+          src={src}
+          alt=""
+          data-file-id={file.id}
+          onLoad={() => {
+            markThumbnailSrcLoaded(file, src);
+            setImgLoaded(true);
+          }}
+          onError={handleImageError}
+          className={isImgLoaded ? 'thumbnail-loaded' : 'thumbnail-loading'}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            opacity: isImgLoaded ? 1 : 0,
+            transition: 'opacity 0.15s ease-in-out',
+            ...(is_lowres && uiStore.upscaleMode === 'pixelated'
+              ? { imageRendering: 'pixelated' }
+              : {}),
+          }}
+        />
+
+        {isVideo && <VideoThumbnailPreview file={file} />}
+
+        {isVideo && (
+          <div className="video-duration-badge">
+            <span style={{ width: '0.65rem', height: '0.65rem', display: 'flex' }}>
+              {IconSet.PLAY}
+            </span>
+            <span>{formatDuration(file.duration || 0)}</span>
+          </div>
+        )}
+      </div>
+    );
   } else if (imageSource.tag === 'ready') {
-    if ('ok' in imageSource.value) {
-      const is_lowres = file.width < 320 || file.height < 320;
-      const src = encodeFilePath(imageSource.value.ok);
-      return (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {!imgLoaded && (
-            <span className="image-loading" style={{ position: 'absolute', inset: 0 }} />
-          )}
-          <img
-            src={src}
-            alt=""
-            data-file-id={file.id}
-            onLoad={() => setImgLoaded(true)}
-            onError={handleImageError}
-            className={imgLoaded ? 'thumbnail-loaded' : 'thumbnail-loading'}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              opacity: imgLoaded ? 1 : 0,
-              transition: 'opacity 0.15s ease-in-out',
-              ...(is_lowres && uiStore.upscaleMode === 'pixelated'
-                ? { imageRendering: 'pixelated' }
-                : {}),
-            }}
-          />
-
-          {isVideo && <VideoThumbnailPreview file={file} />}
-
-          {isVideo && (
-            <div className="video-duration-badge">
-              <span style={{ width: '0.65rem', height: '0.65rem', display: 'flex' }}>
-                {IconSet.PLAY}
-              </span>
-              <span>{formatDuration(file.duration || 0)}</span>
-            </div>
-          )}
-        </div>
-      );
-    } else {
-      return <span className="image-error" />;
-    }
+    return <span className="image-error" />;
   } else {
     return <span className="image-loading" />;
   }

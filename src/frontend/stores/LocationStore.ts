@@ -111,8 +111,8 @@ class LocationStore {
 
     // Get all files in the DB, set up data structures for quick lookups
     // Doing it for all locations, so files moved to another Location on disk, it's properly re-assigned in Allusion too
-    // TODO: Could be optimized, at startup we already fetch all files, don't need to fetch them again here
-    const dbFiles: FileDTO[] = await this.backend.fetchFiles('id', OrderDirection.Asc);
+    // Reuses the already-loaded/in-flight list from FileStore during boot (#80 / gallery fluidity)
+    const dbFiles: FileDTO[] = await this.rootStore.fileStore.getOrFetchAllFiles();
     const dbFilesPathSet = new Set(dbFiles.map((f) => f.absolutePath));
     const dbFilesByCreatedDate = new Map<number, FileDTO[]>();
     for (const file of dbFiles) {

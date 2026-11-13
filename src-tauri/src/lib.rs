@@ -84,6 +84,7 @@ pub fn run() {
             commands::fs::rename_path,
             commands::fs::get_app_data_dir,
             commands::fs::get_path,
+            commands::fs::paths_exist,
             commands::image::get_image_dimensions,
             commands::image::copy_image_to_clipboard,
             commands::window::window_minimize,

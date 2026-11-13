@@ -53,6 +53,18 @@ pub fn get_file_info(path: String) -> Result<FileInfo, String> {
     FileInfo::from_path(PathBuf::from(path))
 }
 
+/// Checks existence of a batch of paths in a single call.
+pub fn check_paths_exist(paths: Vec<String>) -> Vec<bool> {
+    paths.into_iter().map(|p| Path::new(&p).exists()).collect()
+}
+
+#[tauri::command]
+pub async fn paths_exist(paths: Vec<String>) -> Vec<bool> {
+    tauri::async_runtime::spawn_blocking(move || check_paths_exist(paths))
+        .await
+        .unwrap_or_default()
+}
+
 #[tauri::command]
 pub fn read_directory_files(path: String, extensions: Vec<String>) -> Result<Vec<FileInfo>, String> {
     let dir = fs::read_dir(&path).map_err(|e| e.to_string())?;
@@ -388,6 +400,29 @@ mod tests {
 
         assert!(PathBuf::from(&renamed).exists());
         assert!(!file_path.exists());
+    }
+
+    #[test]
+    fn check_paths_exist_returns_presence_in_order() {
+        let dir = TempDir::new().unwrap();
+        let existing_a = dir.path().join("a.jpg");
+        let missing = dir.path().join("missing.jpg");
+        let existing_b = dir.path().join("b.png");
+        std::fs::write(&existing_a, b"1").unwrap();
+        std::fs::write(&existing_b, b"2").unwrap();
+
+        let result = check_paths_exist(vec![
+            existing_a.to_string_lossy().into_owned(),
+            missing.to_string_lossy().into_owned(),
+            existing_b.to_string_lossy().into_owned(),
+        ]);
+
+        assert_eq!(result, vec![true, false, true]);
+    }
+
+    #[test]
+    fn check_paths_exist_handles_empty_input() {
+        assert_eq!(check_paths_exist(Vec::new()), Vec::<bool>::new());
     }
 }
 

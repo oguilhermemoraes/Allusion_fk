@@ -1,9 +1,11 @@
+import { invoke } from '@tauri-apps/api/core';
 import fse from 'fs-extra';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import * as Path from 'path';
 
 import { getThumbnailPath } from 'common/fs';
 import { promiseAllLimit } from 'common/promise';
+import { isTauri } from 'common/tauri';
 import { debounce } from 'common/timeout';
 import { DataStorage } from '../../api/data-storage';
 import { ConditionDTO, OrderBy, OrderDirection } from '../../api/data-storage-search';
@@ -19,6 +21,7 @@ import { ClientTag } from '../entities/Tag';
 import RootStore from './RootStore';
 
 export const FILE_STORAGE_KEY = 'Allusion_File';
+export const DEFAULT_CLIENT_FILE_CACHE_SIZE = 5000;
 
 /** These fields are stored and recovered when the application opens up */
 type PersistentPreferenceFields = 'orderDirection' | 'orderBy';
@@ -42,6 +45,11 @@ class FileStore {
   fileListLastModified = observable<Date>(new Date());
   /** A map of file ID to its index in the file list, for quick lookups by ID */
   private readonly index = new Map<ID, number>();
+  /** Bounded LRU cache of ClientFile by ID surviving folder/filter switches */
+  private readonly clientFileCache = new Map<ID, ClientFile>();
+  private readonly maxCacheSize: number;
+  private allFilesFetchPromise?: Promise<FileDTO[]>;
+  private bootAllBackendFiles?: FileDTO[];
 
   private filesToSave: Map<ID, FileDTO> = new Map();
 
@@ -56,9 +64,14 @@ class FileStore {
   debouncedRefetch: () => void;
   debouncedSaveFilesToSave: () => Promise<void>;
 
-  constructor(backend: DataStorage, rootStore: RootStore) {
+  constructor(
+    backend: DataStorage,
+    rootStore: RootStore,
+    maxCacheSize = DEFAULT_CLIENT_FILE_CACHE_SIZE,
+  ) {
     this.backend = backend;
     this.rootStore = rootStore;
+    this.maxCacheSize = maxCacheSize;
     makeObservable(this);
 
     this.debouncedRefetch = debounce(this.refetch, 200).bind(this);
@@ -135,6 +148,7 @@ class FileStore {
   @action.bound replaceMovedFile(file: ClientFile, newData: FileDTO): void {
     const index = this.index.get(file.id);
     if (index !== undefined) {
+      this.clientFileCache.delete(file.id);
       file.dispose();
 
       const newIFile = mergeMovedFile(file.serialize(), newData);
@@ -147,6 +161,7 @@ class FileStore {
 
       const newClientFile = new ClientFile(this, newIFile);
       newClientFile.thumbnailPath = newThumbPath;
+      this.touchCache(newClientFile.id, newClientFile);
       this.fileList[index] = newClientFile;
       this.save(newClientFile.serialize());
     }
@@ -209,6 +224,7 @@ class FileStore {
 
       // Remove files from stores
       for (const file of files) {
+        this.clientFileCache.delete(file.id);
         file.dispose();
         this.rootStore.uiStore.deselectFile(file);
         this.removeThumbnail(file.absolutePath);
@@ -226,6 +242,13 @@ class FileStore {
       const files = await this.backend.searchFiles(crit.toCondition(), 'id', OrderDirection.Asc);
       console.log('Files to delete', ext, files);
       await this.backend.removeFiles(files.map((f) => f.id));
+
+      for (const [id, cached] of this.clientFileCache) {
+        if (cached.extension === ext) {
+          this.clientFileCache.delete(id);
+          cached.dispose();
+        }
+      }
 
       for (const file of files) {
         this.removeThumbnail(file.absolutePath);
@@ -250,12 +273,36 @@ class FileStore {
   @action.bound async fetchAllFiles(): Promise<void> {
     try {
       this.rootStore.uiStore.clearSearchCriteriaList();
-      const fetchedFiles = await this.backend.fetchFiles(this.orderBy, this.orderDirection);
+      const fetchPromise = this.backend.fetchFiles(this.orderBy, this.orderDirection);
+      this.allFilesFetchPromise = fetchPromise;
+      const fetchedFiles = await fetchPromise;
+      this.bootAllBackendFiles = fetchedFiles;
+      if (this.allFilesFetchPromise === fetchPromise) {
+        this.allFilesFetchPromise = undefined;
+      }
       this.setContentAll();
       return this.updateFromBackend(fetchedFiles);
     } catch (err) {
+      this.allFilesFetchPromise = undefined;
       console.error('Could not load all files', err);
     }
+  }
+
+  /**
+   * Returns all backend files, reusing an in-flight or already-completed
+   * `fetchAllFiles` result during boot so `watchLocations` and
+   * `backfillPalettes` do not issue redundant full-table queries.
+   */
+  async getOrFetchAllFiles(): Promise<FileDTO[]> {
+    if (this.bootAllBackendFiles !== undefined) {
+      return this.bootAllBackendFiles;
+    }
+    if (this.allFilesFetchPromise !== undefined) {
+      return this.allFilesFetchPromise;
+    }
+    const fetchedFiles = await this.backend.fetchFiles('id', OrderDirection.Asc);
+    this.bootAllBackendFiles = fetchedFiles;
+    return fetchedFiles;
   }
 
   @action.bound async fetchUntaggedFiles(): Promise<void> {
@@ -294,27 +341,16 @@ class FileStore {
 
       // For every new file coming in, either re-use the existing client file if it exists,
       // or construct a new client file
-      const [newClientFiles, reusedStatus] = this.filesFromBackend(backendFiles);
-
-      // Dispose of unused files
-      runInAction(() => {
-        for (const oldFile of this.fileList) {
-          if (!reusedStatus.has(oldFile.id)) {
-            oldFile.dispose();
-          }
-        }
-      });
+      const [newClientFiles] = this.filesFromBackend(backendFiles);
 
       // We don't store whether files are missing (since they might change at any time)
       // So we have to check all files and check their existence them here
-      const existenceCheckPromises = newClientFiles.map((clientFile) => async () => {
-        clientFile.setBroken(!(await fse.pathExists(clientFile.absolutePath)));
-      });
-
-      const N = 50; // TODO: same here as in fetchFromBackend: number of concurrent checks should be system dependent
-      await promiseAllLimit(existenceCheckPromises, N);
+      const existsList = await this.checkPathsExist(newClientFiles.map((f) => f.absolutePath));
 
       runInAction(() => {
+        for (let i = 0; i < newClientFiles.length; i++) {
+          newClientFiles[i].setBroken(!existsList[i]);
+        }
         const missingClientFiles = newClientFiles.filter((file) => file.isBroken);
         this.fileList.replace(missingClientFiles);
         this.numMissingFiles = missingClientFiles.length;
@@ -374,10 +410,16 @@ class FileStore {
     this.numUntaggedFiles--;
   }
 
-  // Removes all items from fileList
-  @action.bound clearFileList(): void {
+  // Removes all items from fileList; optionally disposes and clears the LRU cache
+  @action.bound clearFileList(disposeCache = true): void {
     this.fileList.clear();
     this.index.clear();
+    if (disposeCache) {
+      for (const file of this.clientFileCache.values()) {
+        file.dispose();
+      }
+      this.clientFileCache.clear();
+    }
   }
 
   @action get(id: ID): ClientFile | undefined {
@@ -477,8 +519,10 @@ class FileStore {
   @action async updateFromBackend(backendFiles: FileDTO[]): Promise<void> {
     if (backendFiles.length === 0) {
       this.rootStore.uiStore.clearFileSelection();
-      this.fileListLastModified = new Date();
-      return this.clearFileList();
+      if (this.fileList.length > 0) {
+        this.fileListLastModified = new Date();
+      }
+      return this.clearFileList(false);
     }
 
     // Filter out images with hidden tags
@@ -490,7 +534,7 @@ class FileStore {
 
     // For every new file coming in, either re-use the existing client file if it exists,
     // or construct a new client file
-    const [newClientFiles, reusedStatus] = this.filesFromBackend(backendFiles);
+    const [newClientFiles] = this.filesFromBackend(backendFiles);
 
     // No-op fast path: if the resulting list is reference-identical to the
     // current one (same ClientFile objects, same order), nothing changed —
@@ -504,31 +548,10 @@ class FileStore {
       return;
     }
 
-    // Dispose of Client files that are not re-used (to get rid of MobX observers)
-    for (const file of this.fileList) {
-      if (!reusedStatus.has(file.id)) {
-        file.dispose();
-      }
-    }
+    // Check existence of unverified files asynchronously in a single batch IPC call
+    // (or bounded parallel fallback outside Tauri) so we can show files immediately.
+    const filesToCheck = newClientFiles.filter((clientFile) => clientFile.isBroken !== false);
 
-    // Check existence of new files asynchronously, no need to wait until they can be shown
-    // we can simply check whether they exist after they start rendering
-    // TODO: We can already get this from chokidar (folder watching), pretty much for free
-    // Files already verified this session (`isBroken === false`) are skipped:
-    // re-checking the whole library on every navigation is thousands of
-    // `pathExists` IPC round-trips that contribute to the "everything reloads"
-    // sluggishness. Deletions are still caught because files are recreated
-    // (isBroken = undefined) on each folder/filter switch (#80).
-    const existenceCheckPromises = newClientFiles
-      .filter((clientFile) => clientFile.isBroken !== false)
-      .map((clientFile) => async () => {
-        const exists = await fse.pathExists(clientFile.absolutePath);
-        clientFile.setBroken(!exists);
-      });
-
-    // Run the existence check with at most N checks in parallel
-    // TODO: Should make N configurable, or determine based on the system/disk performance
-    // NOTE: This is _not_ await intentionally, since we want to show the files to the user as soon as possible
     runInAction(() => {
       // TODO: restores this line later, currently broken for large lists, see https://github.com/mobxjs/mobx/pull/3189 (look ma, I'm contributing to open source!)
       // this.fileList.replace(newClientFiles);
@@ -539,10 +562,19 @@ class FileStore {
       this.updateFileListState(); // update index & untagged image counter
       this.fileListLastModified = new Date();
     });
-    const N = 50;
-    return promiseAllLimit(existenceCheckPromises, N)
-      .then(() => {
-        this.updateFileListState(); // update missing image counter
+
+    if (filesToCheck.length === 0) {
+      return;
+    }
+
+    return this.checkPathsExist(filesToCheck.map((f) => f.absolutePath))
+      .then((existsList) => {
+        runInAction(() => {
+          for (let i = 0; i < filesToCheck.length; i++) {
+            filesToCheck[i].setBroken(!existsList[i]);
+          }
+          this.updateFileListState(); // update missing image counter
+        });
       })
       .catch((e) => console.error('An error occured during existence checking!', e));
   }
@@ -557,19 +589,54 @@ class FileStore {
     }
   }
 
+  private touchCache(id: ID, file: ClientFile): void {
+    this.clientFileCache.delete(id);
+    this.clientFileCache.set(id, file);
+  }
+
+  private evictCache(activeIds: Set<ID>): void {
+    if (this.clientFileCache.size <= this.maxCacheSize) {
+      return;
+    }
+    for (const [id, file] of this.clientFileCache) {
+      if (this.clientFileCache.size <= this.maxCacheSize) {
+        break;
+      }
+      if (activeIds.has(id)) {
+        continue;
+      }
+      this.clientFileCache.delete(id);
+      file.dispose();
+    }
+  }
+
+  private async checkPathsExist(paths: string[]): Promise<boolean[]> {
+    if (paths.length === 0) {
+      return [];
+    }
+    if (isTauri()) {
+      return invoke<boolean[]>('paths_exist', { paths });
+    }
+    return promiseAllLimit(
+      paths.map((p) => () => fse.pathExists(p)),
+      50,
+    );
+  }
+
   /**
    *
    * @param backendFiles
-   * @returns A list of Client files, and a set of keys that was reused from the existing fileList
+   * @returns A list of Client files, and a set of keys that was reused from the existing fileList or cache
    */
   @action private filesFromBackend(backendFiles: FileDTO[]): [ClientFile[], Set<ID>] {
     const reusedStatus = new Set<ID>();
 
     const clientFiles = backendFiles.map((f) => {
-      // Might already exist!
-      const existingFile = this.get(f.id);
+      // Might already exist in current list or LRU cache!
+      const existingFile = this.get(f.id) ?? this.clientFileCache.get(f.id);
       if (existingFile !== undefined) {
         reusedStatus.add(existingFile.id);
+        this.touchCache(existingFile.id, existingFile);
         // Update tags (might have changes, e.g. removed/merged)
         const newTags = f.tags
           .map((t) => this.rootStore.tagStore.get(t))
@@ -584,10 +651,6 @@ class FileStore {
       }
 
       // Otherwise, create new one.
-      // TODO: Maybe better performance by always keeping the same pool of client files,
-      // and just replacing their properties instead of creating new objects
-      // But that's micro optimization...
-
       const file = new ClientFile(this, f);
       // Initialize the thumbnail path so the image can be loaded immediately when it mounts.
       // To ensure the thumbnail actually exists, the `ensureThumbnail` function should be called
@@ -598,8 +661,11 @@ class FileStore {
             getThumbnailPath(f.absolutePath, this.rootStore.uiStore.thumbnailDirectory),
           )
         : f.absolutePath;
+      this.touchCache(file.id, file);
       return file;
     });
+
+    this.evictCache(new Set(clientFiles.map((f) => f.id)));
 
     return [clientFiles, reusedStatus];
   }
@@ -647,7 +713,8 @@ class FileStore {
    * files that have no thumbnail (those would need a decode anyway).
    */
   @action.bound async backfillPalettes(): Promise<void> {
-    const files = await this.backend.fetchFiles('id', OrderDirection.Asc);
+    const files = await this.getOrFetchAllFiles();
+    this.bootAllBackendFiles = undefined;
     const missing = files.filter((f) => !f.palette || f.palette.length === 0);
     if (missing.length === 0) {
       return;
