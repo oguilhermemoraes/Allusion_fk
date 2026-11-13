@@ -1,4 +1,6 @@
-import path from 'path';
+// Namespace import: works with Node's `path` under Jest (no esModuleInterop) and with the
+// Vite path-shim, which exports every function by name.
+import * as path from 'path';
 import fse from 'fs-extra';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { thumbnailFormat } from '../common/config';
