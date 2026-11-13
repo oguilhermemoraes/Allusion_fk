@@ -41,10 +41,11 @@ jobs:
         working-directory: src-tauri
         run: cargo test --lib
 
-      - name: Benchmark de escala (10k/30k)
+      # Em release: em debug o código do app roda sem otimização e os tempos não refletem o app real.
+      - name: Benchmark de escala (10k/30k, release)
         working-directory: src-tauri
         continue-on-error: true
-        run: cargo test --lib bench_ -- --ignored --nocapture
+        run: cargo test --release --lib bench_ -- --ignored --nocapture
 
       - name: cargo clippy (módulo db)
         working-directory: src-tauri

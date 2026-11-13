@@ -245,7 +245,7 @@ fn translate_string_criterion(
         .as_str()
         .ok_or_else(|| DbError::InvalidInput("string criterion value must be a string".into()))?;
     let val = if col == FileColumn::AbsolutePath {
-        normalize_drive_letter(raw)
+        normalize_drive_letter(raw).into_owned()
     } else {
         raw.to_string()
     };

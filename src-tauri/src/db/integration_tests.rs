@@ -1118,7 +1118,12 @@ fn ported_purge_unsupported_extensions_and_remove_location_cascade() {
 
 #[test]
 #[ignore]
-fn bench_150k_synthetic_files() {
+fn bench_scale() {
+    run_scale_bench(10_000);
+    run_scale_bench(30_000);
+}
+
+fn run_scale_bench(total: usize) {
     use std::time::Instant;
 
     struct Rng(u64);
@@ -1137,7 +1142,7 @@ fn bench_150k_synthetic_files() {
     }
 
     let dir = tempdir().unwrap();
-    let db_path = dir.path().join("bench_150k.db");
+    let db_path = dir.path().join(format!("bench_{total}.db"));
     let conn = open_connection(&db_path).unwrap();
 
     // 300 hierarchical tags: t_000..t_299 (roots t_000..t_009 with 3 levels underneath)
@@ -1188,7 +1193,6 @@ fn bench_150k_synthetic_files() {
         },
     ];
 
-    let total = 150_000_usize;
     let batch_size = 2_000_usize;
     let mut rng = Rng(42);
     let base_ts = 1_750_000_000_000_i64;
@@ -1256,7 +1260,7 @@ fn bench_150k_synthetic_files() {
         create_files_from_path(&conn, "C:/library", &batch).unwrap();
     }
     let insert_elapsed = t_insert.elapsed();
-    assert_eq!(count_files(&conn).unwrap().0, 150_000);
+    assert_eq!(count_files(&conn).unwrap().0, total as u64);
 
     // Search 1: Leaf tag contains
     let t_s1 = Instant::now();
@@ -1324,7 +1328,7 @@ fn bench_150k_synthetic_files() {
     let s3_elapsed = t_s3.elapsed();
 
     println!(
-        "BENCH_150K insert={:.2}ms ({:.0} files/s) | tag_contains={} ({:.2}ms) | tag_recursive_cte={} ({:.2}ms) | name_plus_rating={} ({:.2}ms)",
+        "BENCH_{total} insert={:.2}ms ({:.0} files/s) | tag_contains={} ({:.2}ms) | tag_recursive_cte={} ({:.2}ms) | name_plus_rating={} ({:.2}ms)",
         insert_elapsed.as_secs_f64() * 1000.0,
         total as f64 / insert_elapsed.as_secs_f64(),
         res1.len(),

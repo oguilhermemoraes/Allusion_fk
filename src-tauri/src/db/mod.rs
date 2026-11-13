@@ -7,6 +7,7 @@ pub mod wire;
 #[cfg(test)]
 mod integration_tests;
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use rusqlite::functions::FunctionFlags;
@@ -16,20 +17,23 @@ use self::wire::DbResult;
 
 /// Normalizes leading Windows ASCII drive letters to uppercase (`c:\` -> `C:\`, `c:/` -> `C:/`),
 /// leaving UNC paths, POSIX paths, and relative paths unchanged.
-pub fn normalize_drive_letter(path: &str) -> String {
+pub fn normalize_drive_letter(path: &str) -> Cow<'_, str> {
     let bytes = path.as_bytes();
     if bytes.len() >= 2
         && bytes[0].is_ascii_alphabetic()
         && bytes[1] == b':'
         && (bytes.len() == 2 || bytes[2] == b'\\' || bytes[2] == b'/')
     {
+        if bytes[0].is_ascii_uppercase() {
+            return Cow::Borrowed(path);
+        }
         let upper = (bytes[0] as char).to_ascii_uppercase();
         let mut out = String::with_capacity(path.len());
         out.push(upper);
         out.push_str(&path[1..]);
-        out
+        Cow::Owned(out)
     } else {
-        path.to_string()
+        Cow::Borrowed(path)
     }
 }
 
@@ -53,19 +57,31 @@ pub fn configure_connection(conn: &Connection) -> DbResult<()> {
     })?;
 
     conn.create_scalar_function("u_contains_ci", 2, flags, |ctx| {
-        let haystack: Option<String> = ctx.get(0)?;
-        let needle: Option<String> = ctx.get(1)?;
-        let h = haystack.unwrap_or_default().to_lowercase();
-        let n = needle.unwrap_or_default().to_lowercase();
-        Ok(h.contains(&n))
+        let h = ctx.get_raw(0).as_str_or_null()?.unwrap_or("");
+        let n = ctx.get_raw(1).as_str_or_null()?.unwrap_or("");
+        if n.is_empty() {
+            return Ok(true);
+        }
+        if h.is_ascii() && n.is_ascii() {
+            let hb = h.as_bytes();
+            let nb = n.as_bytes();
+            return Ok(hb.windows(nb.len()).any(|w| w.eq_ignore_ascii_case(nb)));
+        }
+        Ok(h.to_lowercase().contains(&n.to_lowercase()))
     })?;
 
     conn.create_scalar_function("u_starts_with_ci", 2, flags, |ctx| {
-        let haystack: Option<String> = ctx.get(0)?;
-        let prefix: Option<String> = ctx.get(1)?;
-        let h = haystack.unwrap_or_default().to_lowercase();
-        let p = prefix.unwrap_or_default().to_lowercase();
-        Ok(h.starts_with(&p))
+        let h = ctx.get_raw(0).as_str_or_null()?.unwrap_or("");
+        let p = ctx.get_raw(1).as_str_or_null()?.unwrap_or("");
+        if p.is_empty() {
+            return Ok(true);
+        }
+        if h.is_ascii() && p.is_ascii() {
+            let hb = h.as_bytes();
+            let pb = p.as_bytes();
+            return Ok(hb.len() >= pb.len() && hb[..pb.len()].eq_ignore_ascii_case(pb));
+        }
+        Ok(h.to_lowercase().starts_with(&p.to_lowercase()))
     })?;
 
     Ok(())

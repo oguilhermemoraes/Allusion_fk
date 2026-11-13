@@ -391,9 +391,27 @@ fn hydrate_files(conn: &Connection, mut files: Vec<FileWire>) -> DbResult<Vec<Fi
             }
         }
     } else {
-        // Linear O(N + M) scan avoids repeated chunked IN roundtrips on 150k-row fetches.
+        // Populate a connection-local TEMP table so SQLite joins via file_tags / file_palette
+        // primary keys instead of scanning and sorting the full tables.
+        conn.execute_batch(
+            "SAVEPOINT _hydrate_sp;
+             CREATE TEMP TABLE IF NOT EXISTS _hydrate_ids (id TEXT PRIMARY KEY);
+             DELETE FROM _hydrate_ids;",
+        )?;
+        {
+            let mut ins_stmt =
+                conn.prepare_cached("INSERT OR IGNORE INTO _hydrate_ids (id) VALUES (?1)")?;
+            for file in &files {
+                ins_stmt.execute([&file.id])?;
+            }
+        }
+        conn.execute_batch("RELEASE SAVEPOINT _hydrate_sp;")?;
+
         let mut tag_stmt = conn.prepare_cached(
-            "SELECT file_id, tag_id FROM file_tags ORDER BY file_id ASC, position ASC, tag_id ASC",
+            "SELECT ft.file_id, ft.tag_id
+             FROM _hydrate_ids h
+             JOIN file_tags ft ON ft.file_id = h.id
+             ORDER BY ft.file_id ASC, ft.position ASC, ft.tag_id ASC",
         )?;
         let mut tag_rows = tag_stmt.query([])?;
         while let Some(row) = tag_rows.next()? {
@@ -405,7 +423,10 @@ fn hydrate_files(conn: &Connection, mut files: Vec<FileWire>) -> DbResult<Vec<Fi
         }
 
         let mut pal_stmt = conn.prepare_cached(
-            "SELECT file_id, r, g, b, percentage FROM file_palette ORDER BY file_id ASC, position ASC",
+            "SELECT fp.file_id, fp.r, fp.g, fp.b, fp.percentage
+             FROM _hydrate_ids h
+             JOIN file_palette fp ON fp.file_id = h.id
+             ORDER BY fp.file_id ASC, fp.position ASC",
         )?;
         let mut pal_rows = pal_stmt.query([])?;
         while let Some(row) = pal_rows.next()? {
@@ -498,7 +519,7 @@ pub fn fetch_files_by_key(
         WireValue::Float(f) => SqlValue::Real(*f),
         WireValue::Str(s) => {
             if key == FileKeyField::AbsolutePath {
-                SqlValue::Text(normalize_drive_letter(s))
+                SqlValue::Text(normalize_drive_letter(s).into_owned())
             } else {
                 SqlValue::Text(s.clone())
             }
