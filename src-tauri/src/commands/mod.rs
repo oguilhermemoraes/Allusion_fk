@@ -1,3 +1,4 @@
+pub mod db;
 pub mod exif;
 pub mod asset;
 pub mod exr;

@@ -39,6 +39,11 @@ pub fn run() {
         }))
         .manage(FolderWatcherState::new())
         .setup(|app| {
+            let app_data_dir = app.path().app_data_dir()?;
+            let db_state = commands::db::DbState::open(app_data_dir.join("allusion.db"))
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            app.manage(db_state);
+
             // Safety net: the main window is created with `visible: false` and the
             // frontend reveals it via `app_initialized` once the initial files are
             // loaded. If the frontend fails, errors out, or never boots, this timer
@@ -95,7 +100,31 @@ pub fn run() {
             commands::thumbnail::generate_thumbnail,
             commands::duplicates::compute_image_hash,
             commands::duplicates::find_duplicate_images,
-            commands::palette::extract_palette
+            commands::palette::extract_palette,
+            commands::db::db_init,
+            commands::db::db_fetch_tags,
+            commands::db::db_fetch_files,
+            commands::db::db_fetch_files_by_id,
+            commands::db::db_fetch_files_by_key,
+            commands::db::db_fetch_locations,
+            commands::db::db_fetch_searches,
+            commands::db::db_search_files,
+            commands::db::db_create_tag,
+            commands::db::db_create_files_from_path,
+            commands::db::db_create_location,
+            commands::db::db_create_search,
+            commands::db::db_save_tag,
+            commands::db::db_save_files,
+            commands::db::db_save_location,
+            commands::db::db_save_search,
+            commands::db::db_remove_tags,
+            commands::db::db_merge_tags,
+            commands::db::db_remove_files,
+            commands::db::db_purge_unsupported_extensions,
+            commands::db::db_remove_location,
+            commands::db::db_remove_search,
+            commands::db::db_count_files,
+            commands::db::db_clear
         ])
         .run(tauri::generate_context!())
         .expect("error while running allusion tauri application");

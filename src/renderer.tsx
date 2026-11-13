@@ -6,7 +6,6 @@
 // in the HTML file
 import './style.scss';
 
-import Dexie from 'dexie';
 import fse from 'fs-extra';
 import { autorun, reaction } from 'mobx';
 import React from 'react';
@@ -15,15 +14,20 @@ import { Root, createRoot } from 'react-dom/client';
 import { IS_DEV } from 'common/process';
 import { WINDOW_STORAGE_KEY } from 'common/window';
 import { RendererMessenger } from 'src/ipc/renderer';
+import { DataBackup } from './api/data-backup';
+import { DataStorage } from './api/data-storage';
 import Backend from './backend/backend';
+import BackupScheduler from './backend/backup-scheduler';
+import { DB_NAME, dbInit } from './backend/config';
+import SqliteBackend from './backend/sqlite-backend';
 import App from './frontend/App';
 import StoreProvider from './frontend/contexts/StoreContext';
 import Overlay from './frontend/Overlay';
 import { FILE_STORAGE_KEY } from './frontend/stores/FileStore';
 import RootStore from './frontend/stores/RootStore';
 import { PREFERENCES_STORAGE_KEY } from './frontend/stores/UiStore';
-import BackupScheduler from './backend/backup-scheduler';
-import { DB_NAME, dbInit } from './backend/config';
+
+const STORAGE_MODE_KEY = 'allusion.storage';
 
 async function main(): Promise<void> {
   // Render our react components in the div with id 'app' in the html file
@@ -37,19 +41,29 @@ async function main(): Promise<void> {
 
   performance.mark('renderer-start');
 
-  const db = dbInit(DB_NAME);
-
-  await runMainApp(db, root);
+  const storageMode = localStorage.getItem(STORAGE_MODE_KEY);
+  if (storageMode === 'sqlite') {
+    const noopBackup: DataBackup = {
+      schedule: () => {},
+      backupToFile: async () => {},
+      restoreFromFile: async () => {},
+      peekFile: async () => [0, 0],
+    };
+    const backend = await SqliteBackend.init(() => noopBackup.schedule());
+    await runMainApp(backend, noopBackup, root);
+  } else {
+    const db = dbInit(DB_NAME);
+    const defaultBackupDirectory = await RendererMessenger.getDefaultBackupDirectory();
+    const backup = new BackupScheduler(db, defaultBackupDirectory);
+    const [backend] = await Promise.all([
+      Backend.init(db, () => backup.schedule()),
+      fse.ensureDir(defaultBackupDirectory),
+    ]);
+    await runMainApp(backend, backup, root);
+  }
 }
 
-async function runMainApp(db: Dexie, root: Root): Promise<void> {
-  const defaultBackupDirectory = await RendererMessenger.getDefaultBackupDirectory();
-  const backup = new BackupScheduler(db, defaultBackupDirectory);
-  const [backend] = await Promise.all([
-    Backend.init(db, () => backup.schedule()),
-    fse.ensureDir(defaultBackupDirectory),
-  ]);
-
+async function runMainApp(backend: DataStorage, backup: DataBackup, root: Root): Promise<void> {
   const rootStore = await RootStore.main(backend, backup);
 
   // Recover global preferences
