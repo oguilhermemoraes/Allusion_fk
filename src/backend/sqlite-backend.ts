@@ -180,6 +180,40 @@ function normalizeKeyValue(value: IndexableType): string | number | boolean {
   return String(value);
 }
 
+/**
+ * Runs a streaming command and resolves only after every chunk has arrived.
+ *
+ * In Tauri 2 the `invoke` reply and the `Channel` messages travel separately: the reply can land
+ * before the last (or every) chunk, so returning right after `await invoke` yields an empty or
+ * partial list. The command reports `totalCount`, and we wait until that many files were received.
+ */
+async function streamFiles(command: string, args: Record<string, unknown>): Promise<FileDTO[]> {
+  const result: FileDTO[] = [];
+  const state: { expected?: number; resolve?: () => void } = {};
+  const done = new Promise<void>((resolve) => {
+    state.resolve = resolve;
+  });
+  const checkDone = () => {
+    if (state.expected !== undefined && result.length >= state.expected) {
+      state.resolve?.();
+    }
+  };
+
+  const onChunk = new Channel<FileWireDTO[]>();
+  onChunk.onmessage = (chunk) => {
+    for (const item of chunk) {
+      result.push(fileFromWire(item));
+    }
+    checkDone();
+  };
+
+  const summary = await invoke<{ totalCount: number }>(command, { ...args, onChunk });
+  state.expected = summary.totalCount;
+  checkDone();
+  await done;
+  return result;
+}
+
 export class SqliteBackend implements DataStorage {
   private notifyChange: () => void;
 
@@ -198,15 +232,7 @@ export class SqliteBackend implements DataStorage {
   }
 
   async fetchFiles(order: OrderBy<FileDTO>, fileOrder: OrderDirection): Promise<FileDTO[]> {
-    const result: FileDTO[] = [];
-    const onChunk = new Channel<FileWireDTO[]>();
-    onChunk.onmessage = (chunk) => {
-      for (const item of chunk) {
-        result.push(fileFromWire(item));
-      }
-    };
-    await invoke('db_fetch_files', { order, direction: fileOrder, onChunk });
-    return result;
+    return streamFiles('db_fetch_files', { order, direction: fileOrder });
   }
 
   async fetchFilesByID(ids: ID[]): Promise<FileDTO[]> {
@@ -238,23 +264,14 @@ export class SqliteBackend implements DataStorage {
     fileOrder: OrderDirection,
     matchAny = false,
   ): Promise<FileDTO[]> {
-    const result: FileDTO[] = [];
-    const onChunk = new Channel<FileWireDTO[]>();
-    onChunk.onmessage = (chunk) => {
-      for (const item of chunk) {
-        result.push(fileFromWire(item));
-      }
-    };
-    await invoke('db_search_files', {
+    return streamFiles('db_search_files', {
       criteria: normalizeCriteriaList(
         criteria as SearchCriteria | [SearchCriteria, ...SearchCriteria[]],
       ),
       order,
       direction: fileOrder,
       matchAny,
-      onChunk,
     });
-    return result;
   }
 
   async createTag(tag: TagDTO): Promise<void> {
