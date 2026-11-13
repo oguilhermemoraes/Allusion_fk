@@ -1,0 +1,56 @@
+name: Rust tests
+
+# Compila e testa o backend Rust (src-tauri) nos servidores do GitHub,
+# para não pesar no PC de desenvolvimento.
+on:
+  push:
+    branches: [master, 'feat/**', 'fix/**']
+    paths: ['src-tauri/**', '.github/workflows/rust-tests.yml']
+  pull_request:
+    branches: [master]
+    paths: ['src-tauri/**', '.github/workflows/rust-tests.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: rust-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: cargo test + clippy (Windows)
+    runs-on: windows-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri-build exige que frontendDist (../build) exista; os testes não usam o frontend.
+      - name: Placeholder do frontend
+        shell: bash
+        run: mkdir -p build && echo '<!doctype html>' > build/index.html
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      - name: Benchmark de escala (10k/30k)
+        working-directory: src-tauri
+        continue-on-error: true
+        run: cargo test --lib bench_ -- --ignored --nocapture
+
+      - name: cargo clippy (módulo db)
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          cargo clippy --lib --tests --message-format=short 2>&1 | tee clippy.txt
+          if grep -E '^src[\\/]db[\\/].*(warning|error)' clippy.txt; then
+            echo "::error::clippy encontrou problemas em src/db"; exit 1
+          fi
