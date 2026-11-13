@@ -19,6 +19,7 @@ import { DataStorage } from './api/data-storage';
 import Backend from './backend/backend';
 import BackupScheduler from './backend/backup-scheduler';
 import { DB_NAME, dbInit } from './backend/config';
+import { getDexieMigrationState, runDexieMigration } from './backend/dexie-migration';
 import SqliteBackend from './backend/sqlite-backend';
 import App from './frontend/App';
 import StoreProvider from './frontend/contexts/StoreContext';
@@ -43,6 +44,81 @@ async function main(): Promise<void> {
 
   const storageMode = localStorage.getItem(STORAGE_MODE_KEY);
   if (storageMode === 'sqlite') {
+    const migrationState = await getDexieMigrationState();
+    if (migrationState !== 'completed' && migrationState !== 'skipped') {
+      const renderProgress = (done: number, total: number) => {
+        root.render(
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100vh',
+              fontFamily: 'system-ui, sans-serif',
+              padding: '24px',
+            }}
+          >
+            <div>
+              <h2>Migrando biblioteca para SQLite</h2>
+              <p>{`Migrando biblioteca para SQLite: ${done} / ${total} arquivos`}</p>
+            </div>
+          </div>,
+        );
+      };
+
+      try {
+        await runDexieMigration({
+          onBeforeStart: (total) => {
+            if (total > 1000) {
+              RendererMessenger.initialized();
+              renderProgress(0, total);
+            }
+          },
+          onProgress: (done, total) => {
+            if (total > 1000) {
+              renderProgress(done, total);
+            }
+          },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('Dexie to SQLite migration failed', err);
+        RendererMessenger.initialized();
+        root.render(
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100vh',
+              fontFamily: 'system-ui, sans-serif',
+              padding: '24px',
+            }}
+          >
+            <div style={{ maxWidth: '520px' }}>
+              <h2>Falha na migração para SQLite</h2>
+              <p>{message}</p>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                <button type="button" onClick={() => location.reload()}>
+                  Tentar de novo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem(STORAGE_MODE_KEY, 'dexie');
+                    location.reload();
+                  }}
+                >
+                  Voltar para o Dexie
+                </button>
+              </div>
+            </div>
+          </div>,
+        );
+        return;
+      }
+    }
+
     const noopBackup: DataBackup = {
       schedule: () => {},
       backupToFile: async () => {},

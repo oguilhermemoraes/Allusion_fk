@@ -12,7 +12,7 @@ import { ID } from 'src/api/id';
 
 const WRITE_BATCH_SIZE = 2000;
 
-interface FileWireDTO {
+export interface FileWireDTO {
   id: ID;
   ino: string;
   locationId: ID;
@@ -34,7 +34,7 @@ interface FileWireDTO {
   palette?: PaletteColorDTO[];
 }
 
-interface TagWireDTO {
+export interface TagWireDTO {
   id: ID;
   name: string;
   dateAdded: number;
@@ -43,7 +43,7 @@ interface TagWireDTO {
   isHidden: boolean;
 }
 
-interface LocationWireDTO {
+export interface LocationWireDTO {
   id: ID;
   path: string;
   dateAdded: number;
@@ -58,7 +58,7 @@ interface SearchCriteriaWireDTO {
   value: unknown;
 }
 
-interface FileSearchWireDTO {
+export interface FileSearchWireDTO {
   id: ID;
   name: string;
   criteria: SearchCriteriaWireDTO[];
@@ -77,7 +77,7 @@ function fileFromWire(wire: FileWireDTO): FileDTO {
   };
 }
 
-function fileToWire(file: FileDTO): FileWireDTO {
+export function fileToWire(file: FileDTO): FileWireDTO {
   return {
     ...file,
     dateAdded: file.dateAdded.getTime(),
@@ -94,7 +94,7 @@ function tagFromWire(wire: TagWireDTO): TagDTO {
   };
 }
 
-function tagToWire(tag: TagDTO): TagWireDTO {
+export function tagToWire(tag: TagDTO): TagWireDTO {
   return {
     ...tag,
     dateAdded: tag.dateAdded.getTime(),
@@ -108,7 +108,7 @@ function locationFromWire(wire: LocationWireDTO): LocationDTO {
   };
 }
 
-function locationToWire(location: LocationDTO): LocationWireDTO {
+export function locationToWire(location: LocationDTO): LocationWireDTO {
   return {
     ...location,
     dateAdded: location.dateAdded.getTime(),
@@ -143,7 +143,7 @@ function criteriaFromWire(wire: SearchCriteriaWireDTO): SearchCriteria {
   } as unknown as SearchCriteria;
 }
 
-function searchToWire(search: FileSearchDTO): FileSearchWireDTO {
+export function searchToWire(search: FileSearchDTO): FileSearchWireDTO {
   return {
     id: search.id,
     name: search.name,

@@ -124,7 +124,13 @@ pub fn run() {
             commands::db::db_remove_location,
             commands::db::db_remove_search,
             commands::db::db_count_files,
-            commands::db::db_clear
+            commands::db::db_clear,
+            commands::db::db_migration_state,
+            commands::db::db_migration_begin,
+            commands::db::db_migration_skip,
+            commands::db::db_migrate_metadata,
+            commands::db::db_migrate_files_batch,
+            commands::db::db_migration_finish
         ])
         .run(tauri::generate_context!())
         .expect("error while running allusion tauri application");
